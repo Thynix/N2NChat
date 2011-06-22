@@ -1,6 +1,6 @@
 package plugins.N2NChat;
 
-import java.awt.Color;
+import java.awt.*;
 // Code from http://tips4java.wordpress.com/2009/07/05/hsl-color/
 // Licence from about page: "You are free to use and/or modify any or all code posted on the Java Tips Weblog without
 // restriction. A credit in the code comments would be nice, but not in any way mandatory."

@@ -1,18 +1,20 @@
 package plugins.N2NChat;
 
-import freenet.l10n.NodeL10n;
 import freenet.l10n.PluginL10n;
 import freenet.node.DarknetPeerNode;
 import freenet.support.Base64;
 import freenet.support.HTMLNode;
 import freenet.support.Logger;
 import freenet.support.SimpleFieldSet;
-import sun.plugin.navig.motif.Plugin;
 
+import javax.xml.soap.Node;
 import java.awt.Color;
 import java.io.UnsupportedEncodingException;
-import java.lang.String;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.Set;
+import java.util.Arrays;
 
 /**
  * The ChatRoom class keeps track of what has been said in a chat room, parses new messages, formats them, and is
@@ -59,9 +61,10 @@ public class ChatRoom {
 		lastMessageReceived.setTime(new Date());
 		//TODO: What size should this box be? Will the automatic size be reasonable?
 		//TODO: Likely full width with limited height.
-		log = new HTMLNode("div", "class", "overflow:scroll");
+		log = new HTMLNode("div", "style", "overflow:scroll");
 		//Start out the chat by setting the day.
 		log.addChild("p", N2NChatPlugin.dayChangeFormat.format(lastMessageReceived.getTime()));
+		updateParticipantListing();
 	}
 
 	public void updatePeerNodes(DarknetPeerNode[] updatedPeerNodes) {
@@ -155,7 +158,7 @@ public class ChatRoom {
 	 * @return True if the participant was removed; false if not. More detailed error messages are written to
 	 * the log.
 	 */
-	//TODO: Is putting a public key hash to string a reasonable thing to do in the log?
+	//TODO: Is putting a public key hash to string a reasonable thing to do in the log? No, it's an array!
 	//TODO: Should this return a more descriptive state? Will other things care whether the removal was successful?
 	public boolean removeParticipant(byte[] removePubKeyHash, byte[] senderPubKeyHash, boolean connectionProblem) {
 		String error = checkPresenceAndAuthorization("remove", removePubKeyHash, senderPubKeyHash);
@@ -363,8 +366,8 @@ public class ChatRoom {
 		Participant[] sortedParticipants = participants.values().toArray(new Participant[participants.size()]);
 		Arrays.sort(sortedParticipants);
 
-		participantListing = new HTMLNode("div", "class", "overflow:scroll");
-
+		participantListing = new HTMLNode("div", "style", "overflow:scroll");
+		participantListing.addChild("p", username+" (You)");
 		//List participants alphabetically with colored name text and routing information on tooltip.
 		for (Participant participant : sortedParticipants) {
 			String routing;

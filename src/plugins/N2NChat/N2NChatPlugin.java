@@ -15,45 +15,23 @@
 
 package plugins.N2NChat;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.AbstractMap;
-import java.util.HashMap;
-import java.util.logging.Level;
-import java.util.logging.LogRecord;
-import java.util.logging.Logger;
-
-import com.db4o.foundation.InvalidIteratorException;
-import freenet.clients.http.StaticToadlet;
+import freenet.l10n.BaseL10n.LANGUAGE;
 import freenet.l10n.NodeL10n;
+import freenet.l10n.PluginL10n;
 import freenet.node.DarknetPeerNode;
 import freenet.node.FSParseException;
 import freenet.node.NodeToNodeMessageListener;
 import freenet.node.PeerNode;
+import freenet.pluginmanager.*;
 import freenet.support.Base64;
 import freenet.support.IllegalBase64Exception;
 import freenet.support.SimpleFieldSet;
-import freenet.support.plugins.helpers1.PluginContext;
-import freenet.support.plugins.helpers1.WebInterface;
-import net.pterodactylus.util.config.Configuration;
-import net.pterodactylus.util.config.ConfigurationException;
-import net.pterodactylus.util.config.MapConfigurationBackend;
-import net.pterodactylus.util.logging.Logging;
-import net.pterodactylus.util.logging.LoggingListener;
-import net.pterodactylus.util.version.Version;
-import freenet.client.async.DatabaseDisabledException;
-import freenet.l10n.BaseL10n.LANGUAGE;
-import freenet.l10n.PluginL10n;
-import freenet.pluginmanager.FredPlugin;
-import freenet.pluginmanager.FredPluginBaseL10n;
-import freenet.pluginmanager.FredPluginL10n;
-import freenet.pluginmanager.FredPluginThreadless;
-import freenet.pluginmanager.FredPluginVersioned;
-import freenet.pluginmanager.PluginRespirator;
-import sun.security.util.PendingException;
+
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.HashMap;
 
 /**
  * This class interfaces with Freenet. It is the class that is loaded by the node.
@@ -108,7 +86,7 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 	//
 
 	/** The logger. */
-	private static final Logger logger = Logging.getLogger(N2NChatPlugin.class);
+	//private static final Logger logger = Logging.getLogger(N2NChatPlugin.class);
 
 	/** The plugin respirator. */
 	private PluginRespirator pluginRespirator;
@@ -116,13 +94,14 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 	/** The l10n helper. */
 	private PluginL10n l10n;
 
-	private WebInterface webInterface;
-
 	/** HashMap containing all chat rooms this node is present in. The key is the global identifier. */
-	HashMap<Long, ChatRoom> chatRooms;
+	public HashMap<Long, ChatRoom> chatRooms;
 
 	/** Key is global identifier*/
-	HashMap<Long, chatInvite> receivedInvites;
+	public HashMap<Long, chatInvite> receivedInvites;
+
+	private MainPageToadlet mpt;
+	private DisplayChatToadlet displayChatToadlet;
 
 	//
 	// ACCESSORS
@@ -156,14 +135,18 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 	@Override
 	public void runPlugin(PluginRespirator pluginRespirator) {
 		this.pluginRespirator = pluginRespirator;
+		this.chatRooms = new HashMap<Long, ChatRoom>();
+		this.receivedInvites = new HashMap<Long, chatInvite>();
 
 		//TODO: Need to store and retrieve config somehow.
+		mpt = new MainPageToadlet(this);
+		//pluginRespirator.getToadletContainer().register(mpt,
+		//         "FProxyToadlet.categoryFriends", mpt.path(), true, "N2NChatRoom.chatName", "", true, mpt);
+		pluginRespirator.getToadletContainer().register(mpt, null, mpt.path(), true, false);
 
-		/*webInterface = new WebInterface(new PluginContext(pluginRespirator));
-		webInterface.registerVisible(, , "N2N Chat", null);*/
-		MainPageToadlet mpt = new MainPageToadlet(this);
-		pluginRespirator.getToadletContainer().register(mpt,
-		         "FProxyToadlet.categoryFriends", mpt.path(), false, "Chat", "Chat title", true, mpt);
+		displayChatToadlet = new DisplayChatToadlet(this);
+		pluginRespirator.getToadletContainer().register(displayChatToadlet, null, displayChatToadlet.path(), true, false);
+		pluginRespirator.getNode().registerNodeToNodeMessageListener(N2N_MESSAGE_TYPE_CHAT, N2NChatListener);
 	}
 
 	/**
@@ -171,15 +154,13 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 	 */
 	@Override
 	public void terminate() {
-		try {
-			//Disconnect from all chats
-			for (ChatRoom chatRoom : chatRooms.values()) {
-				chatRoom.disconnect();
-			}
-		} finally {
-			/* shutdown logger. */
-			Logging.shutdown();
+		//Disconnect from all chats
+		for (ChatRoom chatRoom : chatRooms.values()) {
+			chatRoom.disconnect();
 		}
+		//Unregister pages
+		pluginRespirator.getToadletContainer().unregister(mpt);
+		pluginRespirator.getToadletContainer().unregister(displayChatToadlet);
 	}
 
 	//
@@ -252,15 +233,18 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 
 	public static void sendInvite(long globalIdentifier, DarknetPeerNode darkPeer, int type) {
 		SimpleFieldSet fs = new SimpleFieldSet(true);
-		fs.put("type", REJECT_INVITE);
+		fs.put("type", type);
 		fs.put("globalIdentifier", globalIdentifier);
 		darkPeer.sendNodeToNodeMessage(fs, N2N_MESSAGE_TYPE_CHAT, true, System.currentTimeMillis(), false);
 	}
 
 
 	public static void sendInviteAccept(DarknetPeerNode darkPeer, long globalIdentifier) {
-
 		sendInvite(globalIdentifier, darkPeer, ACCEPT_INVITE);
+	}
+
+	public static void sendInviteReject(DarknetPeerNode darkPeer, long globalIdentifier) {
+		sendInvite(globalIdentifier, darkPeer, REJECT_INVITE);
 	}
 
 	public class chatInvite {
