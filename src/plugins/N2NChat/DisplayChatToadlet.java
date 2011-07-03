@@ -73,7 +73,6 @@ public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 			//TODO: What is the length of a public key hash? (when base 64 encoded?)
 			try {
 				byte[] pubKeyHash = Base64.decode(request.getPartAsStringFailsafe("invite", 4096));
-				String username = request.getPartAsStringFailsafe("invite", 4096);
 				DarknetPeerNode peerNode = null;
 				for (DarknetPeerNode node : this.node.getDarknetConnections()) {
 					if (Arrays.equals(node.getPubKeyHash(), pubKeyHash)) {
@@ -85,7 +84,7 @@ public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 					super.sendErrorPage(ctx, 500, "Invalid public key hash", "A peer with that hash does not exist.");
 					return;
 				}
-				chatRooms.get(globalIdentifier).sendInviteOffer(peerNode, username);
+				chatRooms.get(globalIdentifier).sendInviteOffer(peerNode, peerNode.getName());
 				selfRefresh(globalIdentifier, ctx);
 				return;
 			} catch (IllegalBase64Exception e) {
