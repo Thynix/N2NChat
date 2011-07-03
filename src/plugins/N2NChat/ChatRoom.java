@@ -7,7 +7,6 @@ import freenet.support.HTMLNode;
 import freenet.support.Logger;
 import freenet.support.SimpleFieldSet;
 
-import javax.xml.soap.Node;
 import java.awt.Color;
 import java.io.UnsupportedEncodingException;
 import java.util.HashMap;
@@ -166,10 +165,9 @@ public class ChatRoom {
 			Logger.warning(this, l10n("removeReceived",
 			        new String[] { "removeName", "removeHash", "fromName", "fromHash" },
 			        new String[] { findName(removePubKeyHash, removePubKeyHash),
-					//TODO: fix print out of hashes here.
-			                removePubKeyHash.toString(),
+			                Base64.encode(removePubKeyHash),
 			                peerNodes.get(senderPubKeyHash).getName(),
-			                senderPubKeyHash.toString() })
+			                Base64.encode(senderPubKeyHash) })
 			        +' '+error+' '+l10n("roomInfo",
 			        new String[] { "roomName", "globalIdentifier"},
 			        new String[] {roomName, String.valueOf(globalIdentifier) }));
@@ -315,9 +313,9 @@ public class ChatRoom {
 			Logger.warning(this, l10n("messageReceived",
 			        new String[] { "composerName", "composerHash", "fromName", "fromHash" },
 			        new String[] { findName(composedBy, deliveredBy),
-			                composedBy.toString(),
+			                Base64.encode(composedBy),
 			                peerNodes.get(deliveredBy).getName(),
-			                deliveredBy.toString() })
+			                Base64.encode(deliveredBy) })
 			        +' '+error+' '+l10n("roomInfo",
 			        new String[] { "roomName", "globalIdentifier"},
 			        new String[] {roomName, String.valueOf(globalIdentifier) }));
@@ -367,7 +365,16 @@ public class ChatRoom {
 		Arrays.sort(sortedParticipants);
 
 		participantListing = new HTMLNode("div", "style", "overflow:scroll");
+
+		//TODO: Username coloring
+		//List self
 		participantListing.addChild("p", username+" (You)");
+		//List pending invites
+		for (String name : sentInvites.values()) {
+			//TODO: username coloring
+			participantListing.addChild("p", name+" (Invite pending)");
+		}
+
 		//List participants alphabetically with colored name text and routing information on tooltip.
 		for (Participant participant : sortedParticipants) {
 			String routing;
@@ -471,7 +478,14 @@ public class ChatRoom {
 	 * @param username The username of the newly joined participant.
 	 */
 	private void sendJoin(DarknetPeerNode darkPeer, byte[] pubKeyHash, String username) {
-		sendBase(darkPeer, formatPubKeyHash(pubKeyHash), N2NChatPlugin.JOIN);
+		SimpleFieldSet fs = formatPubKeyHash(pubKeyHash);
+		try {
+			fs.putSingle("username", Base64.encode(username.getBytes("UTF-8")));
+		} catch (UnsupportedEncodingException e) {
+			throw new Error("This JVM does not support UTF-8! Cannot encode join.");
+		}
+
+		sendBase(darkPeer, fs, N2NChatPlugin.JOIN);
 	}
 
 	/**
@@ -485,11 +499,19 @@ public class ChatRoom {
 		sendBase(darkPeer, formatPubKeyHash(pubKeyHash), N2NChatPlugin.LEAVE);
 	}
 
+	/**
+	 * Whether or not a sent invite to that peer is pending.
+	 * @param pubKeyHash public key hash to check
+	 * @return true if an invite to that peer is pending, false if not.
+	 */
+	public boolean inviteSentTo(byte[] pubKeyHash) {
+		return sentInvites.containsKey(pubKeyHash);
+	}
+
 	public boolean sendInviteOffer(DarknetPeerNode darkPeer, String username) {
 		if (sentInvites.containsKey(darkPeer.getPubKeyHash())) {
 			return false;
 		}
-		sentInvites.put(darkPeer.getPubKeyHash(), username);
 
 		SimpleFieldSet fs = new SimpleFieldSet(true);
 		try {
@@ -499,6 +521,8 @@ public class ChatRoom {
 			throw new Error("JVM does not support UTF-8! Cannot encode username string!");
 		}
 		sendBase(darkPeer, fs, N2NChatPlugin.OFFER_INVITE);
+		sentInvites.put(darkPeer.getPubKeyHash(), username);
+		updateParticipantListing();
 		return true;
 	}
 

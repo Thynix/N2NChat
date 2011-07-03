@@ -164,7 +164,8 @@ public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 		ChatRoom chatRoom = chatRooms.get(globalIdentifier);
 		ArrayList<DarknetPeerNode> list = new ArrayList<DarknetPeerNode>();
 		for (DarknetPeerNode peerNode : node.getDarknetConnections()) {
-			if (!chatRoom.containsParticipant(peerNode.getPubKeyHash())) {
+			if (!chatRoom.containsParticipant(peerNode.getPubKeyHash()) &&
+			        !chatRoom.inviteSentTo(peerNode.getPubKeyHash())) {
 				list.add(peerNode);
 			}
 		}

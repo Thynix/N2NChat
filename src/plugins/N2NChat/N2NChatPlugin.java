@@ -347,7 +347,7 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 				try {
 					chatRooms.get(globalIdentifier).receiveMessage(
 					        pubKeyHash,
-					        messageComposedFormat.parse(fs.get("composedTime")),
+					        messageComposedFormat.parse(fs.get("timeComposed")),
 					        darkSource.getPubKeyHash(), fs.get("text"));
 				} catch (ParseException e) {
 					//Could not parse date. Dropping.
@@ -357,7 +357,7 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 				}
 			//Someone joined a chat room.
 			} else if (type == JOIN) {
-				chatRooms.get(globalIdentifier).joinedParticipant(pubKeyHash, fs.get("name"),
+				chatRooms.get(globalIdentifier).joinedParticipant(pubKeyHash, fs.get("username"),
 				        darkSource);
 			//Someone left a chat room.
 			} else if (type == LEAVE) {
