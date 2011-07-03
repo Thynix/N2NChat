@@ -104,7 +104,7 @@ public class ChatRoom {
 		        true)) {
 			//They aren't; this is a fresh join.
 			for (byte[] pubKeyHash : participants.keySet()) {
-				if (pubKeyHash != darknetParticipant.getPubKeyHashHash() &&
+				if (!Arrays.equals(pubKeyHash, darknetParticipant.getPubKeyHash()) &&
 				        participants.get(pubKeyHash).directlyConnected) {
 					//Send all other participants a join for the new participant.
 					sendJoin(participants.get(pubKeyHash).peerNode,
@@ -325,7 +325,7 @@ public class ChatRoom {
 	 * sender is not in this chat room.
 	 */
 	public boolean receiveMessage(byte[] composedBy, Date timeComposed, byte[] deliveredBy, String message) {
-		String error = checkPresenceAndAuthorization("message", composedBy, deliveredBy);
+		String error = checkPresenceAndAuthorization("message.", composedBy, deliveredBy);
 		if (error != null) {
 			Logger.warning(this, l10n("messageReceived",
 			        new String[] { "composerName", "composerHash", "fromName", "fromHash" },
@@ -356,7 +356,7 @@ public class ChatRoom {
 		//With text color based on identity hash with a complementary background for visibility.
 		Color textColor = user.nameColor;
 		String name = user.name;
-		messageLine.addChild("div", "class", "color:rgb("+textColor.getRed()+','+textColor.getGreen()+','+
+		messageLine.addChild("div", "style", "color:rgb("+textColor.getRed()+','+textColor.getGreen()+','+
 		        textColor.getBlue()+')', name+": ");
 
 		//Ex: Blah blah blah.
@@ -409,8 +409,9 @@ public class ChatRoom {
 			}
 			Color nameColor = participant.nameColor;
 			String color = "rgb("+nameColor.getRed()+','+nameColor.getGreen()+','+nameColor.getBlue()+')';
-			participantListing.addChild("p", "title", routing).addChild("div", "style", color);
+			participantListing.addChild("p", "title", routing).addChild("div", "style", color, participant.name);
 		}
+		participantListing.addChild("#", sortedParticipants.length+" total participants");
 	}
 
 	public void sendOwnMessage(String message) {
@@ -562,6 +563,7 @@ public class ChatRoom {
 			inviteParticipant(darkPeer, sentInvites.get(darkPeer.getPubKeyHash()));
 		}
 		sentInvites.remove(darkPeer.getPubKeyHash());
+		updateParticipantListing();
 		return true;
 	}
 

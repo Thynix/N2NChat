@@ -338,13 +338,13 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 
 			//A darknet peer accepted an invite this node offered. Add them to the chat room.
 			if (type == ACCEPT_INVITE) {
-				chatRooms.get(globalIdentifier).receiveInviteAccept(darkSource);
 				System.out.println("Received invite accept to room "+globalIdentifier+" from "+darkSource.getName());
+				chatRooms.get(globalIdentifier).receiveInviteAccept(darkSource);
 				return;
 			//A darknet peer rejected an invite this node offered; remove it from list of pending invites.
 			} else if (type == REJECT_INVITE) {
-				chatRooms.get(globalIdentifier).receiveInviteReject(darkSource);
 				System.out.println("Received invite reject to room "+globalIdentifier+" from "+darkSource.getName());
+				chatRooms.get(globalIdentifier).receiveInviteReject(darkSource);
 				return;
 			}
 
@@ -364,6 +364,7 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 
 			//A message was received. Attempt to add the message.
 			if (type == MESSAGE) {
+				System.out.println("Received text message in room "+globalIdentifier+" from "+darkSource.getName());
 				try {
 					chatRooms.get(globalIdentifier).receiveMessage(
 					        pubKeyHash,
@@ -375,21 +376,20 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 				} catch (IllegalBase64Exception e) {
 					freenet.support.Logger.error(this, "Invalid base64 encoding on message text", e);
 				}
-				System.out.println("Received text message in room "+globalIdentifier+" from "+darkSource.getName());
 			//Someone joined a chat room.
 			} else if (type == JOIN) {
+				System.out.println("Received join in room "+globalIdentifier+" from "+darkSource.getName());
 				try {
 					chatRooms.get(globalIdentifier).joinedParticipant(pubKeyHash,
  					        new String(Base64.decode(fs.get("username"))), darkSource);
 				} catch (IllegalBase64Exception e) {
 					freenet.support.Logger.error(this, "Invalid base64 encoding on username", e);
 				}
-				System.out.println("Received join in room "+globalIdentifier+" from "+darkSource.getName());
 			//Someone left a chat room.
 			} else if (type == LEAVE) {
+				System.out.println("Received leave in room "+globalIdentifier+" from "+darkSource.getName());
 				chatRooms.get(globalIdentifier).removeParticipant(pubKeyHash,
 				        darkSource.getPubKeyHash(), false);
-				System.out.println("Received leave in room "+globalIdentifier+" from "+darkSource.getName());
 			}
 		}
 	};
