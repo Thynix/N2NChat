@@ -43,7 +43,6 @@
 							<Plugin-Main-Class>plugins.N2NChat.N2NChatPlugin</Plugin-Main-Class>
 						</manifestEntries>
 					</archive>
-					<include>plugins/N2NChat/l10n/</include>
 				</configuration>
 			</plugin>
 			<plugin>
@@ -74,7 +73,6 @@
 				</executions>
 			</plugin>
 		</plugins>
-		<sourceDirectory>src/</sourceDirectory>
 	</build>
 	<reporting>
 		<plugins>
