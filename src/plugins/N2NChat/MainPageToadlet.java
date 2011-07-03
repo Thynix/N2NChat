@@ -86,6 +86,30 @@ public class MainPageToadlet extends Toadlet implements LinkEnabledCallback {
 			return;
 		}
 
+		if (request.isParameterSet("accept")) {
+			//User accepted an invite.
+			long globalIdentifier = Long.parseLong(request.getParam("accept"));
+			N2NChatPlugin.chatInvite invite = receivedInvites.get(globalIdentifier);
+			ChatRoom chatRoom = new ChatRoom(invite.roomName, globalIdentifier, invite.username,
+			        pluginRespirator.getNode().getDarknetConnections(), l10n);
+			//Add the participant who sent the invitation to the room.
+			chatRoom.joinedParticipant(invite.darkPeer.getPubKeyHash(), invite.darkPeer.getName(),
+			        invite.darkPeer);
+			//Add the room to the list of rooms.
+			chatRooms.put(globalIdentifier, chatRoom);
+			//Send invite acceptance.
+			N2NChatPlugin.sendInviteAccept(invite.darkPeer, globalIdentifier);
+			//Invite is accepted and so no longer pending.
+			receivedInvites.remove(globalIdentifier);
+		} else if (request.isParameterSet("reject")) {
+			//User rejected an invite.
+			long globalIdentifier = Long.parseLong(request.getParam("reject"));
+			//Send the inviting peer the invite rejection.
+			N2NChatPlugin.sendInviteReject(receivedInvites.get(globalIdentifier).darkPeer, globalIdentifier);
+			//Invite is rejected and so no longer pending.
+			receivedInvites.remove(globalIdentifier);
+		}
+
 		//TODO: Localization
 		//List current chat rooms
 		PageNode pn = ctx.getPageMaker().getPageNode("Chat Room Listing", ctx);
