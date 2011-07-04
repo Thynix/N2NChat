@@ -195,20 +195,21 @@ public class ChatRoom {
 		//The identity to remove and the sender of the request are in the chat room, and the sender of the
 		//request is authorized to remove the identity.
 		if (connectionProblem) {
-			log.addChild(l10n("lostConnection", "name", participants.get(removePubKeyHash).name));
+			log.addChild("li", l10n("lostConnection", "name", participants.get(removePubKeyHash).name));
 		} else {
-			log.addChild(l10n("left", "name", participants.get(removePubKeyHash).name));
+			log.addChild("li", l10n("left", "name", participants.get(removePubKeyHash).name));
 		}
 		participants.remove(removePubKeyHash);
+		updateParticipantListing();
 
 		Set<byte[]> identityHashes = participants.keySet();
 		for (byte[] identityHash : identityHashes) {
 			//Remove from the room any other participants the leaving node routed for.
 			if (participants.get(identityHash).peerNode.getPubKeyHash() == removePubKeyHash) {
 				participants.remove(identityHash);
-				log.addChild(l10n("lostConnection", "name", participants.get(identityHash).name));
-			//Send this disconnect to all participants this node invited.
-			} else if (participants.get(identityHash).locallyInvited) {
+				log.addChild("li", l10n("lostConnection", "name", participants.get(identityHash).name));
+			//Send this disconnect to all participants this node invited, provided it didn't deliver this.
+			} else if (participants.get(identityHash).locallyInvited && !Arrays.equals(senderPubKeyHash, identityHash)) {
 				sendLeave(participants.get(identityHash).peerNode, removePubKeyHash);
 			}
 		}
