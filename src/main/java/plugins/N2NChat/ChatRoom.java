@@ -62,7 +62,8 @@ public class ChatRoom {
 		//TODO: Likely full width with limited height.
 		log = new HTMLNode("div", "style", "overflow:scroll;background-color:white;height:100%");
 		//Start out the chat by setting the day.
-		log.addChild("p", N2NChatPlugin.dayChangeFormat.format(lastMessageReceived.getTime()));
+		log.addChild("ul", "style", "list-style-type:none;");
+		log.addChild("li", N2NChatPlugin.dayChangeFormat.format(lastMessageReceived.getTime()));
 		updateParticipantListing();
 	}
 
@@ -131,8 +132,8 @@ public class ChatRoom {
 		/*TODO: Query directly connected participants for backup routing paths.*/
 		if (addParticipant(joinedPublicKeyHash, name, routedBy, false)) {
 			for (byte[] pubKeyHash : participants.keySet()) {
-				//Route this join to all participants this node routes for.
-				if (participants.get(pubKeyHash).locallyInvited) {
+				//Route this join to all participants this node routes for, provided the join was not received from them.
+				if (participants.get(pubKeyHash).locallyInvited && !Arrays.equals(pubKeyHash, routedBy.getPubKeyHash())) {
 					sendJoin(participants.get(pubKeyHash).peerNode, joinedPublicKeyHash, name);
 				}
 			}
@@ -158,7 +159,7 @@ public class ChatRoom {
 		boolean directlyConnected = peerNodes.containsKey(publicKeyHash);
 		participants.put(publicKeyHash, new Participant(publicKeyHash, name, peerNode, directlyConnected,
 		        invitedLocally));
-		log.addChild("p", l10n("joined", "name", name));
+		log.addChild("li", l10n("joined", "name", name));
 		updateParticipantListing();
 		return true;
 	}
@@ -177,7 +178,7 @@ public class ChatRoom {
 	//TODO: Is putting a public key hash to string a reasonable thing to do in the log? No, it's an array!
 	//TODO: Should this return a more descriptive state? Will other things care whether the removal was successful?
 	public boolean removeParticipant(byte[] removePubKeyHash, byte[] senderPubKeyHash, boolean connectionProblem) {
-		String error = checkPresenceAndAuthorization("remove", removePubKeyHash, senderPubKeyHash);
+		String error = checkPresenceAndAuthorization("remove.", removePubKeyHash, senderPubKeyHash);
 		if (error != null) {
 			Logger.warning(this, l10n("removeReceived",
 			        new String[] { "removeName", "removeHash", "fromName", "fromHash" },
@@ -221,6 +222,8 @@ public class ChatRoom {
 	public void disconnect() {
 		for (Participant participant : participants.values()) {
 			if (participant.directlyConnected) {
+				//Null public key hash is not included in the field set, and receiving nodes will
+				//fill it in with the sender's public key hash.
 				sendLeave(participant.peerNode, null);
 			}
 		}
@@ -345,7 +348,7 @@ public class ChatRoom {
 
 		//Ex: [ 04:38:30 PM ]
 		//Ex: Tooltip of time composed.
-		HTMLNode messageLine = log.addChild("p", "title",
+		HTMLNode messageLine = log.addChild("li", "title",
 		        l10n("composed", "time", N2NChatPlugin.messageComposedFormat.format(timeComposed.getTime())),
 		        "[ "+ N2NChatPlugin.messageReceivedFormat.format(now.getTime())+" ] ");
 
@@ -355,7 +358,7 @@ public class ChatRoom {
 		Color textColor = user.nameColor;
 		String name = user.name;
 		messageLine.addChild("div", "style", "color:rgb("+textColor.getRed()+','+textColor.getGreen()+','+
-		        textColor.getBlue()+')', name+": ");
+		        textColor.getBlue()+");text-shadow:2px 2px 4px #000000;display:inline", name+": ");
 
 		//Ex: Blah blah blah.
 		messageLine.addChild("#", message);
@@ -379,16 +382,13 @@ public class ChatRoom {
 		Participant[] sortedParticipants = participants.values().toArray(new Participant[participants.size()]);
 		Arrays.sort(sortedParticipants);
 
-		participantListing = new HTMLNode("div", "style", "overflow:scroll;background-color:white;");
+		participantListing = new HTMLNode("ul", "style", "overflow:scroll;background-color:white;list-style-type:none;");
+		participantListing.addChild("li", l10n("totalParticipants", "numberOf",
+		        String.valueOf(sortedParticipants.length+1)));
 
 		//TODO: Username coloring
 		//List self
-		participantListing.addChild("p", username+" (You)");
-		//List pending invites
-		for (String name : sentInvites.values()) {
-			//TODO: username coloring
-			participantListing.addChild("p", name+" (Invite pending)");
-		}
+		participantListing.addChild("li", username+" (You)");
 
 		//List participants alphabetically with colored name text and routing information on tooltip.
 		for (Participant participant : sortedParticipants) {
@@ -407,10 +407,16 @@ public class ChatRoom {
 			}
 			Color nameColor = participant.nameColor;
 			String color = "color:rgb("+nameColor.getRed()+','+nameColor.getGreen()+','+nameColor.getBlue()+");";
-			participantListing.addChild("p", "title", routing).addChild("div", "style", color, participant.name);
+			participantListing.addChild("li",
+			        new String[] { "style", "title" },
+			        new String [] { color+";text-shadow:2px 2px 4px #000000", routing }, participant.name);
 		}
-		participantListing.addChild("#", l10n("totalParticipants", "numberOf",
-		        String.valueOf(sortedParticipants.length+1)));
+
+		//List pending invites
+		for (String name : sentInvites.values()) {
+			//TODO: username coloring
+			participantListing.addChild("li", name+" (Invite pending)");
+		}
 	}
 
 	public void sendOwnMessage(String message) {
@@ -419,7 +425,7 @@ public class ChatRoom {
 		addDateOnDayChange(now);
 
 		//[ 04:38:20 PM ] Username: Blah blah blah.
-		log.addChild("p", "[ "+ N2NChatPlugin.messageReceivedFormat.format(now.getTime())+" ] "+ username +": "+message);
+		log.addChild("li", "[ "+ N2NChatPlugin.messageReceivedFormat.format(now.getTime())+" ] "+ username +": "+message);
 		lastMessageReceived = now;
 
 		//Send this message to others.
@@ -437,7 +443,7 @@ public class ChatRoom {
 	private void addDateOnDayChange(Calendar now) {
 		if (now.get(Calendar.DAY_OF_YEAR) != lastMessageReceived.get(Calendar.DAY_OF_YEAR) ||
 		        now.get(Calendar.YEAR) != lastMessageReceived.get(Calendar.YEAR)) {
-			log.addChild("p", N2NChatPlugin.dayChangeFormat.format(now.getTime()));
+			log.addChild("li", N2NChatPlugin.dayChangeFormat.format(now.getTime()));
 		}
 	}
 
@@ -479,9 +485,7 @@ public class ChatRoom {
 			throw new Error("This JVM does not support UTF-8! Cannot encode message.");
 		}
 
-		if (composedBy != null) {
-			fs = formatPubKeyHash(composedBy, fs);
-		}
+		formatPubKeyHash(composedBy, fs);
 		System.out.println("Sent message in room "+globalIdentifier+" to "+darkPeer.getName());
 		sendBase(darkPeer, fs, N2NChatPlugin.MESSAGE);
 	}
@@ -574,11 +578,19 @@ public class ChatRoom {
 		return receiveInvite(darkPeer, false);
 	}
 
+	/**
+	 * Returns a SimpleFieldSet with the applicable pubKeyHash field.
+	 * @param pubKeyHash The key hash to add. Can be null, in which case the field will not be added.
+	 * @param fs To add fields to. Can be null, in which case a new one will be created.
+	 * @return Empty or unmodified SimpleFieldSet if pubKeyHash is null.
+	 */
 	private SimpleFieldSet formatPubKeyHash(byte[] pubKeyHash, SimpleFieldSet fs) {
 		if (fs == null) {
 			fs = new SimpleFieldSet(true);
 		}
-		fs.putSingle("pubKeyHash", Base64.encode(pubKeyHash));
+		if (pubKeyHash != null) {
+			fs.putSingle("pubKeyHash", Base64.encode(pubKeyHash));
+		}
 		return fs;
 	}
 

@@ -1,5 +1,6 @@
 package plugins.N2NChat;
 
+import com.sun.org.apache.bcel.internal.generic.NEW;
 import freenet.clients.http.*;
 import freenet.l10n.NodeL10n;
 import freenet.l10n.PluginL10n;
@@ -64,6 +65,16 @@ public class MainPageToadlet extends Toadlet implements LinkEnabledCallback {
 			return;
 		}
 
+		if (request.isPartSet("disconnect")) {
+			long globalIdentifier = Long.parseLong(request.getPartAsStringFailsafe("globalIdentifier", 4096));
+			if (!chatRooms.containsKey(globalIdentifier)) {
+				super.sendErrorPage(ctx, 403, l10n("invalidRoomTitle"), l10n("invalidRoom"));
+				return;
+			}
+			chatRooms.get(globalIdentifier).disconnect();
+			chatRooms.remove(globalIdentifier);
+		}
+
 		//TODO: Tell user about the maximum length of the room name instead of silently truncating.
 		if (request.isPartSet("new-room-name") &&
 			        !request.getPartAsStringFailsafe("new-room-name", roomNameTruncate).isEmpty()) {
@@ -119,10 +130,20 @@ public class MainPageToadlet extends Toadlet implements LinkEnabledCallback {
 		//List current chat rooms
 		PageNode pn = ctx.getPageMaker().getPageNode("Chat Room Listing", ctx);
 		HTMLNode content = pn.content;
-		HTMLNode roomListing = content.addChild("div", "class", "room-listing");
+		HTMLNode roomListing = content.addChild("ul",
+		        new String[] { "class", "style" },
+		        new String[] { "room-listing", "list-style-type:none;" });
 		for (ChatRoom chatRoom : chatRooms.values()) {
-			roomListing.addChild("a", "href", DisplayChatToadlet.PATH+"?room="+chatRoom.getGlobalIdentifier(),
-			        chatRoom.getRoomName());
+			HTMLNode roomEntry = roomListing.addChild("li");
+			roomEntry.addChild("a", "href", DisplayChatToadlet.PATH + "?room=" + chatRoom.getGlobalIdentifier(),
+				chatRoom.getRoomName());
+			HTMLNode disconnectForm = ctx.addFormChild(roomEntry, path(), "disconnect");
+			disconnectForm.addChild("input",
+			        new String[] { "type", "name", "value" },
+			        new String[] { "hidden", "globalIdentifier", String.valueOf(chatRoom.getGlobalIdentifier()) });
+			disconnectForm.addChild("input",
+			        new String[] { "type", "name", "value" },
+			        new String[] { "submit", "disconnect", l10n("disconnect") });
 		}
 		//Allow creating a new room
 		HTMLNode createChatForm = ctx.addFormChild(roomListing, path(), "create-room");
@@ -132,14 +153,21 @@ public class MainPageToadlet extends Toadlet implements LinkEnabledCallback {
 		        new String[] { "submit", "create-chat", l10n("newRoom") });
 
 		//List received invitations.
-		HTMLNode inviteListing = content.addChild("div", "class", "invite-listing");
+		HTMLNode inviteListing = content.addChild("table");
+		HTMLNode tableHeaders = inviteListing.addChild("tr");
+		tableHeaders.addChild("th", l10n("roomName"));
+		tableHeaders.addChild("th", l10n("username"));
+		tableHeaders.addChild("th", l10n("invitedBy"));
+		tableHeaders.addChild("th", l10n("accept"));
+		tableHeaders.addChild("th", l10n("reject"));
 		for (long globalIdentifier : receivedInvites.keySet()) {
 			N2NChatPlugin.chatInvite invite = receivedInvites.get(globalIdentifier);
-			HTMLNode entry = inviteListing.addChild("p");
-			entry.addChild("#", "Room Name: "+invite.roomName+" Username: "+invite.username+" Invited by:"
-			        +invite.darkPeer.getName());
-			entry.addChild("a", "href", path()+"?accept="+globalIdentifier, l10n("accept") );
-			entry.addChild("a", "href", path()+"?reject="+globalIdentifier, l10n("reject") );
+			HTMLNode entry = inviteListing.addChild("tr");
+			entry.addChild("td", invite.roomName);
+			entry.addChild("td", invite.username);
+			entry.addChild("td", invite.darkPeer.getName());
+			entry.addChild("td").addChild("a", "href", path()+"?accept="+globalIdentifier, l10n("accept") );
+			entry.addChild("td").addChild("a", "href", path()+"?reject="+globalIdentifier, l10n("reject") );
 		}
 
 		writeHTMLReply(ctx, 200, "OK", null, pn.outer.generate());
