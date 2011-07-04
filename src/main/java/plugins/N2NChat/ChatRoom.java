@@ -60,7 +60,7 @@ public class ChatRoom {
 		lastMessageReceived.setTime(new Date());
 		//TODO: What size should this box be? Will the automatic size be reasonable?
 		//TODO: Likely full width with limited height.
-		log = new HTMLNode("div", "style", "overflow:scroll");
+		log = new HTMLNode("div", "style", "overflow:scroll;background-color:white;height:100%");
 		//Start out the chat by setting the day.
 		log.addChild("p", N2NChatPlugin.dayChangeFormat.format(lastMessageReceived.getTime()));
 		updateParticipantListing();
@@ -343,17 +343,15 @@ public class ChatRoom {
 		now.setTime(new Date());
 		addDateOnDayChange(now);
 
-		HTMLNode messageLine = log.addChild("p");
-
 		//Ex: [ 04:38:30 PM ]
 		//Ex: Tooltip of time composed.
-		messageLine.addChild("timestamp", "title",
+		HTMLNode messageLine = log.addChild("p", "title",
 		        l10n("composed", "time", N2NChatPlugin.messageComposedFormat.format(timeComposed.getTime())),
 		        "[ "+ N2NChatPlugin.messageReceivedFormat.format(now.getTime())+" ] ");
 
 		Participant user = participants.get(composedBy);
 		//Ex: BillyBob:
-		//With text color based on identity hash with a complementary background for visibility.
+		//With text color based on public key hash.
 		Color textColor = user.nameColor;
 		String name = user.name;
 		messageLine.addChild("div", "style", "color:rgb("+textColor.getRed()+','+textColor.getGreen()+','+
@@ -381,7 +379,7 @@ public class ChatRoom {
 		Participant[] sortedParticipants = participants.values().toArray(new Participant[participants.size()]);
 		Arrays.sort(sortedParticipants);
 
-		participantListing = new HTMLNode("div", "style", "overflow:scroll");
+		participantListing = new HTMLNode("div", "style", "overflow:scroll;background-color:white;");
 
 		//TODO: Username coloring
 		//List self
@@ -408,10 +406,11 @@ public class ChatRoom {
 				                participant.peerNode.getIdentityString() });
 			}
 			Color nameColor = participant.nameColor;
-			String color = "rgb("+nameColor.getRed()+','+nameColor.getGreen()+','+nameColor.getBlue()+')';
+			String color = "color:rgb("+nameColor.getRed()+','+nameColor.getGreen()+','+nameColor.getBlue()+");";
 			participantListing.addChild("p", "title", routing).addChild("div", "style", color, participant.name);
 		}
-		participantListing.addChild("#", sortedParticipants.length+" total participants");
+		participantListing.addChild("#", l10n("totalParticipants", "numberOf",
+		        String.valueOf(sortedParticipants.length+1)));
 	}
 
 	public void sendOwnMessage(String message) {
@@ -629,13 +628,14 @@ public class ChatRoom {
 			this.directlyConnected = directlyConnected;
 			this.locallyInvited = locallyInvited;
 
-			//Bits 24-31 map to ~40%-85% luminosity to keep the colors distinguishable and visible on white.
+			//Bits 24-31 map to ~40%-70% luminosity to keep the colors distinguishable and visible on white.
 			//Bits 0-23 are used by Color for RGB.
 			//TODO: Assuming hash is at least 4 bytes. How long is this actually? Check DarknetCrypto.
 			assert(publicKeyHash.length >= 4);
 			int hashInt = publicKeyHash[0] | (publicKeyHash[1] << 8) | (publicKeyHash[2] << 16);
 			HSLColor colorManipulator = new HSLColor(new Color(hashInt));
-			float luminance = publicKeyHash[3]/127*22.5f+62.5f;
+			//[3] for luminance bit. 127 (-128) is the maximum value of a signed byte, and is scaled 20 from 60.
+			float luminance = publicKeyHash[3]/127*15f+55f;
 			colorManipulator.adjustLuminance(luminance);
 			nameColor = colorManipulator.getRGB();
 		}

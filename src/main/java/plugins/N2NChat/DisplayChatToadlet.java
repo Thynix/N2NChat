@@ -120,11 +120,16 @@ public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 			assert(chatRoom != null);
 			PageNode pn = ctx.getPageMaker().getPageNode(chatRoom.getRoomName(), ctx);
 
+			//So that the members and messages pane share vertical size.
+			HTMLNode panes = pn.content.addChild("div", "style", "display:table;width:100%");
+
 			//Add main messages area.
-			pn.content.addChild(new HTMLNode("div", "class", "messagePane").addChild(chatRoom.getLog()));
+			//pn.content.addChild(new HTMLNode("div", "class", "messagePane").addChild(chatRoom.getLog()));
+			panes.addChild("div", "style", "display:table-cell;width:80%;").addChild(chatRoom.getLog());
 
 			//Add listing of current participants.
-			HTMLNode participantPane = pn.content.addChild("div", "class", "participantPane");
+			//HTMLNode participantPane = pn.content.addChild("div", "class", "participantPane");
+			HTMLNode participantPane = panes.addChild("div", "style", "display:table-cell;width:20%");
 			participantPane.addChild(chatRoom.getParticipantListing());
 			//And ability to invite those not already participating. Don't display if all connected darknet
 			//peers are already participating.
@@ -143,7 +148,6 @@ public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 				        new String[] { "submit", "send-invite",
 				                l10n("sendInvitation")});
 			}
-			//TODO: Show status of pending invites.
 
 			//Add message sending area.
 			HTMLNode messageEntry = ctx.addFormChild(pn.content, path(), "send-message");
