@@ -29,7 +29,7 @@ public class ByteArray {
 		if (array == o) {
 			return true;
 		}
-		return (o instanceof byte[]) && Arrays.equals(array, (byte[]) o);
+		return (o instanceof ByteArray) && Arrays.equals(array, ((ByteArray) o).getBytes());
 	}
 
 	/**
