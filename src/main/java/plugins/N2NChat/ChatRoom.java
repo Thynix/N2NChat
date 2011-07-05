@@ -277,10 +277,10 @@ public class ChatRoom {
 			return l10n(prefix+"targetNonparticipant");
 		}
 
-		//The sender of the request and identity to remove are in the chat room, but the sender of the request
-		//is not authorized to remove that identity. This may occur in legitimate circumstances if this node has
+		//The sender of the request and target are in the chat room, but the sender of the request
+		//is not authorized to route for the target. This may occur in legitimate circumstances if this node has
 		//a direct connection to a peer that the sender of the request invited.
-		if (participants.get(targetPubKeyHash).peerNode.getPubKeyHash() != senderPubKeyHash) {
+		if (!Arrays.equals(participants.get(targetPubKeyHash).peerNode.getPubKeyHash(), senderPubKeyHash)) {
 			return l10n(prefix+"senderUnauthorized");
 		}
 
@@ -380,31 +380,32 @@ public class ChatRoom {
 
 	private void updateParticipantListing() {
 		//Sort participants alphabetically.
-		Participant[] sortedParticipants = participants.values().toArray(new Participant[participants.size()]);
-		Arrays.sort(sortedParticipants);
+		//Participant[] sortedParticipants = participants.values().toArray(new Participant[participants.size()]);
+		//Arrays.sort(sortedParticipants);
 
 		participantListing = new HTMLNode("ul", "style", "overflow:scroll;background-color:white;list-style-type:none;");
 		participantListing.addChild("li", l10n("totalParticipants", "numberOf",
-		        String.valueOf(sortedParticipants.length+1)));
+		        String.valueOf(participants.size()+1)));
 
 		//TODO: Username coloring
 		//List self
 		participantListing.addChild("li", username+" (You)");
 
-		//List participants alphabetically with colored name text and routing information on tooltip.
-		for (Participant participant : sortedParticipants) {
+		//List participants with colored name text and routing information on tooltip.
+		for (byte[] pubKeyHash : participants.keySet()) {
 			String routing;
+			Participant participant = participants.get(pubKeyHash);
 			if (participant.directlyConnected) {
 				routing = l10n("connectedDirectly",
 				        new String[] { "nodeName", "nodeID" },
 				        new String[] { participant.peerNode.getName(),
-				                participant.peerNode.getIdentityString() });
+				                Base64.encode(participant.peerNode.getPubKeyHash()) });
 			} else {
 				routing = l10n("connectedThrough",
-				        new String[] { "nameInRoom", "nodeName", "nodeID" },
-				        new String[] { participants.get(participant.peerNode.getPubKeyHash()).name,
-				                participant.peerNode.getName(),
-				                participant.peerNode.getIdentityString() });
+				        new String[] { "nodeName", "nodeID", "pubKeyHash" },
+				        new String[] { participant.peerNode.getName(),
+				                Base64.encode(participant.peerNode.getPubKeyHash()),
+				                Base64.encode(pubKeyHash) });
 			}
 			Color nameColor = participant.nameColor;
 			String color = "color:rgb("+nameColor.getRed()+','+nameColor.getGreen()+','+nameColor.getBlue()+");";
@@ -487,7 +488,7 @@ public class ChatRoom {
 		}
 
 		formatPubKeyHash(composedBy, fs);
-		System.out.println("Sent message in room "+globalIdentifier+" to "+darkPeer.getName());
+		Logger.minor(this, "Sent message composed "+ (composedBy == null ? "locally" : "by "+Base64.encode(composedBy)) + " in room "+globalIdentifier+" to "+darkPeer.getName());
 		sendBase(darkPeer, fs, N2NChatPlugin.MESSAGE);
 	}
 
@@ -506,7 +507,7 @@ public class ChatRoom {
 		} catch (UnsupportedEncodingException e) {
 			throw new Error("This JVM does not support UTF-8! Cannot encode join.");
 		}
-		System.out.println("Sent join of "+username+" in room "+globalIdentifier+" to "+darkPeer.getName());
+		Logger.minor(this, "Sent join of "+username+" in room "+globalIdentifier+" to "+darkPeer.getName());
 		sendBase(darkPeer, fs, N2NChatPlugin.JOIN);
 	}
 
@@ -518,7 +519,7 @@ public class ChatRoom {
 	 * @param pubKeyHash The public key hash of the participant that has left.
 	 */
 	private void sendLeave(DarknetPeerNode darkPeer, byte[] pubKeyHash) {
-		System.out.println("Sent leave in room "+globalIdentifier+" to "+darkPeer.getName());
+		Logger.minor(this, "Sent leave in room "+globalIdentifier+" to "+darkPeer.getName());
 		sendBase(darkPeer, formatPubKeyHash(pubKeyHash), N2NChatPlugin.LEAVE);
 	}
 
@@ -543,7 +544,7 @@ public class ChatRoom {
 		} catch (UnsupportedEncodingException e) {
 			throw new Error("JVM does not support UTF-8! Cannot encode username string!");
 		}
-		System.out.println("Sent invite offer for room "+globalIdentifier+" to "+darkPeer.getName());
+		Logger.minor(this, "Sent invite offer for room "+globalIdentifier+" to "+darkPeer.getName());
 		sendBase(darkPeer, fs, N2NChatPlugin.OFFER_INVITE);
 		sentInvites.put(darkPeer.getPubKeyHash(), username);
 		updateParticipantListing();
@@ -552,15 +553,19 @@ public class ChatRoom {
 
 	public boolean sendInviteRetract(DarknetPeerNode darkPeer) {
 		if (sentInvites.containsKey(darkPeer.getPubKeyHash())) {
+			Logger.minor(this, "Retracted "+darkPeer.getName()+"'s invite to room "+globalIdentifier);
 			sendBase(darkPeer, null, N2NChatPlugin.RETRACT_INVITE);
 			sentInvites.remove(darkPeer.getPubKeyHash());
 			return true;
+		} else {
+			Logger.warning(this, "Attempted to remove "+darkPeer.getName()+"'s invite to room "+globalIdentifier);
 		}
 		return false;
 	}
 
 	private boolean receiveInvite(DarknetPeerNode darkPeer, boolean inviteParticipant) {
 		if (!sentInvites.containsKey(darkPeer.getPubKeyHash())) {
+			Logger.warning(this, "Received message from "+darkPeer.getName()+" about nonexistent invite to room "+globalIdentifier);
 			return false;
 		}
 		if (inviteParticipant) {
@@ -572,10 +577,12 @@ public class ChatRoom {
 	}
 
 	public boolean receiveInviteAccept(DarknetPeerNode darkPeer) {
+		Logger.minor(this, darkPeer.getName()+" accepted an invite to room "+globalIdentifier);
 		return receiveInvite(darkPeer, true);
 	}
 
 	public boolean receiveInviteReject(DarknetPeerNode darkPeer) {
+		Logger.minor(this, darkPeer.getName()+" rejected an invite to room "+globalIdentifier);
 		return receiveInvite(darkPeer, false);
 	}
 

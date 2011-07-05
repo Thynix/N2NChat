@@ -25,15 +25,14 @@ import freenet.node.PeerNode;
 import freenet.pluginmanager.*;
 import freenet.support.Base64;
 import freenet.support.IllegalBase64Exception;
+import freenet.support.Logger;
 import freenet.support.SimpleFieldSet;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.logging.Logger;
 
 /**
  * This class interfaces with Freenet. It is the class that is loaded by the node.
@@ -242,12 +241,12 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 
 
 	public static void sendInviteAccept(DarknetPeerNode darkPeer, long globalIdentifier) {
-		System.out.println("Sent invite accept for room " + globalIdentifier + " to " + darkPeer.getName());
+		Logger.minor(N2NChatPlugin.class, "Sent invite accept for room " + globalIdentifier + " to " + darkPeer.getName());
 		sendInvite(globalIdentifier, darkPeer, ACCEPT_INVITE);
 	}
 
 	public static void sendInviteReject(DarknetPeerNode darkPeer, long globalIdentifier) {
-		System.out.println("Sent invite reject for room "+globalIdentifier+" to "+darkPeer.getName());
+		Logger.minor(N2NChatPlugin.class, "Sent invite reject for room " + globalIdentifier + " to " + darkPeer.getName());
 		sendInvite(globalIdentifier, darkPeer, REJECT_INVITE);
 	}
 
@@ -277,7 +276,7 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 			} catch (UnsupportedEncodingException e) {
 				throw new Error("Impossible: JVM doesn't support UTF-8: " + e, e);
 			} catch (IOException e) {
-				freenet.support.Logger.error(this, "IOException while parsing node to node message data", e);
+				Logger.error(this, "IOException while parsing node to node message data", e);
 				return;
 			}
 
@@ -292,15 +291,15 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 			} catch (FSParseException e) {
 				//Could not parse global identifier. Dropping.
 				//TODO: Add localized, logged error message.
-				System.out.println("Failed to parse global identifier from "+((DarknetPeerNode) source).getName()+'.');
+				Logger.error(this, "Failed to parse global identifier from "+((DarknetPeerNode) source).getName()+'.');
 				return;
 			}
 
-			//Now we don't care that it was a chat message, but what kind.
+			//We already know it's a chat message, but what kind?
 			try {
 				type = fs.getInt("type");
 			} catch (FSParseException e) {
-				System.out.println("Failed to read message type in message about room "+globalIdentifier);
+				Logger.error(this, "Failed to read message type in message about room "+globalIdentifier);
 			}
 
 			/*/A darknet peer offered this node an invite. Add it to the list of offered invites to allow
@@ -313,22 +312,20 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 					receivedInvites.put(globalIdentifier, new chatInvite(username, roomName,
 					       darkSource));
 				} catch (IllegalBase64Exception e) {
-					freenet.support.Logger.error(this, "Invalid base64 encoding on user/room name", e);
+					Logger.error(this, "Invalid base64 encoding on user/room name", e);
 				}
-				System.out.println("Received invite to room "+globalIdentifier+" from "+darkSource.getName());
 				return;
 			} else if (type == RETRACT_INVITE) {
 				if (receivedInvites.containsKey(globalIdentifier) &&
 				        receivedInvites.get(globalIdentifier).darkPeer == darkSource) {
 					receivedInvites.remove(darkSource.getPubKeyHash());
 				}
-				System.out.println("Received invite retract for room "+globalIdentifier+" from "+darkSource.getName());
 				return;
 			}
 
 			//Check that the requested room exists.
 			if (!chatRooms.containsKey(globalIdentifier)) {
-				freenet.support.Logger.error(this, l10n.getBase().getString("plugin.nonexistentRoom",
+				Logger.error(this, l10n.getBase().getString("plugin.nonexistentRoom",
 				        new String[] { "globalIdentifier", "type" },
 				        new String[] { String.valueOf(globalIdentifier), String.valueOf(type) }));
 				return;
@@ -338,12 +335,12 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 
 			//A darknet peer accepted an invite this node offered. Add them to the chat room.
 			if (type == ACCEPT_INVITE) {
-				System.out.println("Received invite accept to room "+globalIdentifier+" from "+darkSource.getName());
+				Logger.minor(this, "Received invite accept for room "+globalIdentifier+" from "+darkSource.getName());
 				chatRooms.get(globalIdentifier).receiveInviteAccept(darkSource);
 				return;
 			//A darknet peer rejected an invite this node offered; remove it from list of pending invites.
 			} else if (type == REJECT_INVITE) {
-				System.out.println("Received invite reject to room "+globalIdentifier+" from "+darkSource.getName());
+				Logger.minor(this, "Received invite reject for room "+globalIdentifier+" from "+darkSource.getName());
 				chatRooms.get(globalIdentifier).receiveInviteReject(darkSource);
 				return;
 			}
@@ -354,17 +351,17 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 				pubKeyHash = Base64.decode(fs.getString("pubKeyHash"));
 			} catch (FSParseException e) {
 				//pubKeyHash was not included. This means it pertains to the sender.
+				Logger.minor(this, "Public key hash was not included; assuming sender.");
 				pubKeyHash = darkSource.getPubKeyHash();
 			} catch (IllegalBase64Exception e) {
 				//Could not parse identity hash. Dropping.
 				//TODO: Add localized, logged error message.
-				System.out.println("Failed to parse public key hash from "+darkSource.getName()+'.');
+				Logger.error(this, "Failed to parse public key hash from "+darkSource.getName()+'.');
 				return;
 			}
 
 			//A message was received. Attempt to add the message.
 			if (type == MESSAGE) {
-				System.out.println("Received text message in room "+globalIdentifier+" from "+darkSource.getName());
 				try {
 					chatRooms.get(globalIdentifier).receiveMessage(
 					        pubKeyHash,
@@ -372,22 +369,22 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 					        darkSource.getPubKeyHash(), new String(Base64.decode(fs.get("text"))));
 				} catch (FSParseException e) {
 					//TODO: Add localized, logged error message.
-					System.out.println("Failed to parse date from "+darkSource.getName()+'.');
+					Logger.error(this, "Failed to parse date from "+darkSource.getName()+'.');
 				} catch (IllegalBase64Exception e) {
-					freenet.support.Logger.error(this, "Invalid base64 encoding on message text", e);
+					Logger.error(this, "Invalid base64 encoding on message text", e);
 				}
+				return;
 			//Someone joined a chat room.
 			} else if (type == JOIN) {
-				System.out.println("Received join in room "+globalIdentifier+" from "+darkSource.getName());
 				try {
 					chatRooms.get(globalIdentifier).joinedParticipant(pubKeyHash,
  					        new String(Base64.decode(fs.get("username"))), darkSource);
 				} catch (IllegalBase64Exception e) {
-					freenet.support.Logger.error(this, "Invalid base64 encoding on username", e);
+					Logger.error(this, "Invalid base64 encoding on username", e);
 				}
+				return;
 			//Someone left a chat room.
 			} else if (type == LEAVE) {
-				System.out.println("Received leave in room "+globalIdentifier+" from "+darkSource.getName());
 				chatRooms.get(globalIdentifier).removeParticipant(pubKeyHash,
 				        darkSource.getPubKeyHash(), false);
 			}
