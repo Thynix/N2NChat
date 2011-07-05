@@ -6,10 +6,10 @@ import freenet.support.Base64;
 import freenet.support.HTMLNode;
 import freenet.support.Logger;
 import freenet.support.SimpleFieldSet;
+import sun.nio.ch.DevPollSelectorProvider;
 
 import java.awt.Color;
 import java.io.UnsupportedEncodingException;
-import java.lang.reflect.Array;
 import java.util.HashMap;
 import java.util.Calendar;
 import java.util.Date;
@@ -24,13 +24,13 @@ public class ChatRoom {
 
 	private Calendar lastMessageReceived;
 	/**Everyone in this room. The key is the public key hash, the value is the participant object.*/
-	private HashMap<byte[], Participant> participants;
+	private HashMap<ByteArray, Participant> participants;
 	//TODO: Move list of DarknetPeerNodes to N2NChatPlugin and check for alternate routes from there.
-	private HashMap<byte[], DarknetPeerNode> peerNodes;
+	private HashMap<ByteArray, DarknetPeerNode> peerNodes;
 	/**Invites sent out to this room. Key is public key hash of the peer the invite was sent to,
 	 * Value is the offered username.
 	 */
-	private HashMap<byte[], String> sentInvites;
+	private HashMap<ByteArray, String> sentInvites;
 	private HTMLNode log;
 	private HTMLNode participantListing;
 	private String roomName;
@@ -54,8 +54,8 @@ public class ChatRoom {
 		this.username = username;
 		this.l10n = l10n;
 		updatePeerNodes(peerNodes);
-		participants = new HashMap<byte[], Participant>();
-		sentInvites = new HashMap<byte[], String>();
+		participants = new HashMap<ByteArray, Participant>();
+		sentInvites = new HashMap<ByteArray, String>();
 		lastMessageReceived = Calendar.getInstance();
 		lastMessageReceived.setTime(new Date());
 		//TODO: What size should this box be? Will the automatic size be reasonable?
@@ -79,15 +79,16 @@ public class ChatRoom {
 	public ChatRoom(String roomName, long globalIdentifier, String username, DarknetPeerNode[] peerNodes,
 	        PluginL10n l10n, DarknetPeerNode invitedBy) {
 		this(roomName, globalIdentifier, username, peerNodes, l10n);
-		participants.put(invitedBy.getPubKeyHash(), 
-		        new Participant(invitedBy.getPubKeyHash(), invitedBy.getName(), invitedBy, true, false));
+		participants.put(new ByteArray(invitedBy.getPubKeyHash()),
+		        new Participant(new ByteArray(invitedBy.getPubKeyHash()), invitedBy.getName(), invitedBy, true, false));
 		updateParticipantListing();
 	}
 
+	//TODO: This should move out of the chat room and into N2NPlugin to avoid having multiple copies.
 	public void updatePeerNodes(DarknetPeerNode[] updatedPeerNodes) {
-		this.peerNodes = new HashMap<byte[], DarknetPeerNode>();
+		this.peerNodes = new HashMap<ByteArray, DarknetPeerNode>();
 		for (DarknetPeerNode node : updatedPeerNodes) {
-			peerNodes.put(node.getPubKeyHash(), node);
+			peerNodes.put(new ByteArray(node.getPubKeyHash()), node);
 		}
 		//TODO: Check new peers for direct connections to those currently routed and backup routes.
 	}
@@ -101,16 +102,16 @@ public class ChatRoom {
 	 */
 	public boolean inviteParticipant(DarknetPeerNode darknetParticipant, String username) {
 		//Check if the participant is already participating.
-		if (addParticipant(darknetParticipant.getPubKeyHash(), darknetParticipant.getName(), darknetParticipant,
+		if (addParticipant(new ByteArray(darknetParticipant.getPubKeyHash()), darknetParticipant.getName(), darknetParticipant,
 		        true)) {
 			//They aren't; this is a fresh join.
-			for (byte[] pubKeyHash : participants.keySet()) {
-				if (!Arrays.equals(pubKeyHash, darknetParticipant.getPubKeyHash()) &&
+			for (ByteArray pubKeyHash : participants.keySet()) {
+				if (!pubKeyHash.equals(new ByteArray(darknetParticipant.getPubKeyHash())) &&
 				        participants.get(pubKeyHash).directlyConnected) {
 					//Send all other participants a join for the new participant.
 					sendJoin(participants.get(pubKeyHash).peerNode,
-						darknetParticipant.getPubKeyHash(),
-						username);
+					        new ByteArray(darknetParticipant.getPubKeyHash()),
+					        username);
 					//Send the new participant joins for all other participants.
 					sendJoin(darknetParticipant, pubKeyHash, participants.get(pubKeyHash).name);
 				}
@@ -128,12 +129,12 @@ public class ChatRoom {
 	 * with regards to this participant.
 	 * @return True if the participant was added, false otherwise.
 	 */
-	public boolean joinedParticipant(byte[] joinedPublicKeyHash, String name, DarknetPeerNode routedBy) {
+	public boolean joinedParticipant(ByteArray joinedPublicKeyHash, String name, DarknetPeerNode routedBy) {
 		/*TODO: Query directly connected participants for backup routing paths.*/
 		if (addParticipant(joinedPublicKeyHash, name, routedBy, false)) {
-			for (byte[] pubKeyHash : participants.keySet()) {
+			for (ByteArray pubKeyHash : participants.keySet()) {
 				//Route this join to all participants this node routes for, provided the join was not received from them.
-				if (participants.get(pubKeyHash).locallyInvited && !Arrays.equals(pubKeyHash, routedBy.getPubKeyHash())) {
+				if (participants.get(pubKeyHash).locallyInvited && !pubKeyHash.equals(new ByteArray(routedBy.getPubKeyHash()))) {
 					sendJoin(participants.get(pubKeyHash).peerNode, joinedPublicKeyHash, name);
 				}
 			}
@@ -151,7 +152,7 @@ public class ChatRoom {
 	 * @param invitedLocally True if invited by the local node, false if invited by someone else.
 	 * @return True if participant was added, false otherwise.
 	 */
-	private boolean addParticipant(byte[] publicKeyHash, String name, DarknetPeerNode peerNode, boolean invitedLocally) {
+	private boolean addParticipant(ByteArray publicKeyHash, String name, DarknetPeerNode peerNode, boolean invitedLocally) {
 		//A participant cannot be in a chat room multiple times at once.
 		if (participants.containsKey(publicKeyHash)) {
 			return false;
@@ -177,18 +178,18 @@ public class ChatRoom {
 	 */
 	//TODO: Is putting a public key hash to string a reasonable thing to do in the log? No, it's an array!
 	//TODO: Should this return a more descriptive state? Will other things care whether the removal was successful?
-	public boolean removeParticipant(byte[] removePubKeyHash, byte[] senderPubKeyHash, boolean connectionProblem) {
+	public boolean removeParticipant(ByteArray removePubKeyHash, ByteArray senderPubKeyHash, boolean connectionProblem) {
 		String error = checkPresenceAndAuthorization("remove.", removePubKeyHash, senderPubKeyHash);
 		if (error != null) {
 			Logger.warning(this, l10n("removeReceived",
-			        new String[] { "removeName", "removeHash", "fromName", "fromHash" },
-			        new String[] { findName(removePubKeyHash, removePubKeyHash),
-			                Base64.encode(removePubKeyHash),
-			                peerNodes.get(senderPubKeyHash).getName(),
-			                Base64.encode(senderPubKeyHash) })
-			        +' '+error+' '+l10n("roomInfo",
-			        new String[] { "roomName", "globalIdentifier"},
-			        new String[] {roomName, String.valueOf(globalIdentifier) }));
+				new String[]{"removeName", "removeHash", "fromName", "fromHash"},
+				new String[]{findName(removePubKeyHash, removePubKeyHash),
+					Base64.encode(removePubKeyHash.getBytes()),
+					peerNodes.get(senderPubKeyHash).getName(),
+					Base64.encode(senderPubKeyHash.getBytes())})
+				+ ' ' + error + ' ' + l10n("roomInfo",
+				new String[]{"roomName", "globalIdentifier"},
+				new String[]{roomName, String.valueOf(globalIdentifier)}));
 			return false;
 		}
 
@@ -202,22 +203,22 @@ public class ChatRoom {
 		participants.remove(removePubKeyHash);
 		updateParticipantListing();
 
-		Set<byte[]> identityHashes = participants.keySet();
-		for (byte[] identityHash : identityHashes) {
+		Set<ByteArray> identityHashes = participants.keySet();
+		for (ByteArray identityHash : identityHashes) {
 			//Remove from the room any other participants the leaving node routed for.
-			if (participants.get(identityHash).peerNode.getPubKeyHash() == removePubKeyHash) {
+			if (removePubKeyHash.equals(new ByteArray(participants.get(identityHash).peerNode.getPubKeyHash()))) {
 				participants.remove(identityHash);
 				log.addChild("li", l10n("lostConnection", "name", participants.get(identityHash).name));
 			//Send this disconnect to all participants this node invited, provided it didn't deliver this.
-			} else if (participants.get(identityHash).locallyInvited && !Arrays.equals(senderPubKeyHash, identityHash)) {
+			} else if (participants.get(identityHash).locallyInvited && !senderPubKeyHash.equals(identityHash)) {
 				sendLeave(participants.get(identityHash).peerNode, removePubKeyHash);
 			}
 		}
 		return true;
 	}
 
-	public boolean containsParticipant(byte[] pubKeyHash) {
-		return participants.keySet().contains(pubKeyHash);
+	public boolean containsParticipant(ByteArray pubKeyHash) {
+		return participants.containsKey(pubKeyHash);
 	}
 
 	public void disconnect() {
@@ -237,9 +238,9 @@ public class ChatRoom {
 	 * @param senderPubKeyHash Public key hash of the peer that sent the message.
 	 * @return Either a name or "an unknown participant"
 	 */
-	private String findName (byte[] targetPubKeyHash, byte[] senderPubKeyHash) {
+	private String findName (ByteArray targetPubKeyHash, ByteArray senderPubKeyHash) {
 		//Sender must be connected in order to send something, so their name is always known.
-		if (Arrays.equals(senderPubKeyHash, targetPubKeyHash)) {
+		if (senderPubKeyHash.equals(targetPubKeyHash)) {
 			return peerNodes.get(senderPubKeyHash).getName();
 		} else if (participants.containsKey(targetPubKeyHash)) {
 			return participants.get(targetPubKeyHash).name;
@@ -257,10 +258,10 @@ public class ChatRoom {
 	 * @return null if the identities are in the room and the sender is authorized.
 	 * If there's a problem it returns descriptive text.
 	 */
-	private String checkPresenceAndAuthorization(String prefix, byte[] targetPubKeyHash, byte[] senderPubKeyHash) {
+	private String checkPresenceAndAuthorization(String prefix, ByteArray targetPubKeyHash, ByteArray senderPubKeyHash) {
 		//Neither the sender nor the identity it concerns are in the chat room.
 		if (!participants.containsKey(senderPubKeyHash) && !participants.containsKey(targetPubKeyHash)) {
-			if (senderPubKeyHash == targetPubKeyHash) {
+			if (senderPubKeyHash.equals(targetPubKeyHash)) {
 				return l10n("nonparticipant");
 			} else {
 				return l10n(prefix+"senderAndTargetNonparticipant");
@@ -280,7 +281,7 @@ public class ChatRoom {
 		//The sender of the request and target are in the chat room, but the sender of the request
 		//is not authorized to route for the target. This may occur in legitimate circumstances if this node has
 		//a direct connection to a peer that the sender of the request invited.
-		if (!Arrays.equals(participants.get(targetPubKeyHash).peerNode.getPubKeyHash(), senderPubKeyHash)) {
+		if (!senderPubKeyHash.equals(new ByteArray(participants.get(targetPubKeyHash).peerNode.getPubKeyHash()))) {
 			return l10n(prefix+"senderUnauthorized");
 		}
 
@@ -328,18 +329,24 @@ public class ChatRoom {
 	 * @return True if the message was added; false if the message's composer is not in this chat room or the
 	 * sender is not in this chat room.
 	 */
-	public boolean receiveMessage(byte[] composedBy, Date timeComposed, byte[] deliveredBy, String message) {
+	public boolean receiveMessage(ByteArray composedBy, Date timeComposed, ByteArray deliveredBy, String message) {
 		String error = checkPresenceAndAuthorization("message.", composedBy, deliveredBy);
 		if (error != null) {
+			assert(composedBy != null && deliveredBy != null);
 			Logger.warning(this, l10n("messageReceived",
-			        new String[] { "composerName", "composerHash", "fromName", "fromHash" },
-			        new String[] { findName(composedBy, deliveredBy),
-			                Base64.encode(composedBy),
-			                peerNodes.get(deliveredBy).getName(),
-			                Base64.encode(deliveredBy) })
-			        +' '+error+' '+l10n("roomInfo",
-			        new String[] { "roomName", "globalIdentifier"},
-			        new String[] {roomName, String.valueOf(globalIdentifier) }));
+				new String[]{"composerName", "composerHash", "fromName", "fromHash"},
+				new String[]{findName(composedBy, deliveredBy),
+				        Base64.encode(composedBy.getBytes()),
+				        peerNodes.get(deliveredBy).getName(),
+				        Base64.encode(deliveredBy.getBytes())})
+				+ ' ' + error + ' ' + l10n("roomInfo",
+				new String[]{"roomName", "globalIdentifier"},
+				new String[]{roomName, String.valueOf(globalIdentifier)}));
+			Logger.minor(this, "participants contains the following key hashes:");
+			for (ByteArray keyHash : participants.keySet()) {
+				Logger.minor(this, Base64.encode(keyHash.getBytes()));
+			}
+			Logger.minor(this, "Done listing key hashes.");
 			return false;
 		}
 
@@ -392,7 +399,7 @@ public class ChatRoom {
 		participantListing.addChild("li", username+" (You)");
 
 		//List participants with colored name text and routing information on tooltip.
-		for (byte[] pubKeyHash : participants.keySet()) {
+		for (ByteArray pubKeyHash : participants.keySet()) {
 			String routing;
 			Participant participant = participants.get(pubKeyHash);
 			if (participant.directlyConnected) {
@@ -405,7 +412,7 @@ public class ChatRoom {
 				        new String[] { "nodeName", "nodeID", "pubKeyHash" },
 				        new String[] { participant.peerNode.getName(),
 				                Base64.encode(participant.peerNode.getPubKeyHash()),
-				                Base64.encode(pubKeyHash) });
+				                Base64.encode(pubKeyHash.getBytes()) });
 			}
 			Color nameColor = participant.nameColor;
 			String color = "color:rgb("+nameColor.getRed()+','+nameColor.getGreen()+','+nameColor.getBlue()+");";
@@ -476,7 +483,7 @@ public class ChatRoom {
 	 * @param composedBy The public key hash of the participant that composed this message. Can be null, in which
 	 * case receiving nodes are to assume the sender of the message is the composer.
 	 */
-	private void sendMessage(DarknetPeerNode darkPeer, Date timeComposed, String message, byte[] composedBy) {
+	private void sendMessage(DarknetPeerNode darkPeer, Date timeComposed, String message, ByteArray composedBy) {
 		SimpleFieldSet fs = new SimpleFieldSet(true);
 		fs.put("timeComposed", timeComposed.getTime());
 
@@ -488,7 +495,7 @@ public class ChatRoom {
 		}
 
 		formatPubKeyHash(composedBy, fs);
-		Logger.minor(this, "Sent message composed "+ (composedBy == null ? "locally" : "by "+Base64.encode(composedBy)) + " in room "+globalIdentifier+" to "+darkPeer.getName());
+		Logger.minor(this, "Sent message composed " + (composedBy == null ? "locally" : "by " + Base64.encode(composedBy.getBytes())) + " in room " + globalIdentifier + " to " + darkPeer.getName());
 		sendBase(darkPeer, fs, N2NChatPlugin.MESSAGE);
 	}
 
@@ -500,7 +507,7 @@ public class ChatRoom {
 	 * @param pubKeyHash The public key hash of the participant that has joined.
 	 * @param username The username of the newly joined participant.
 	 */
-	private void sendJoin(DarknetPeerNode darkPeer, byte[] pubKeyHash, String username) {
+	private void sendJoin(DarknetPeerNode darkPeer, ByteArray pubKeyHash, String username) {
 		SimpleFieldSet fs = formatPubKeyHash(pubKeyHash);
 		try {
 			fs.putSingle("username", Base64.encode(username.getBytes("UTF-8")));
@@ -518,7 +525,7 @@ public class ChatRoom {
 	 * @param darkPeer The darknet peer to send the notification to.
 	 * @param pubKeyHash The public key hash of the participant that has left.
 	 */
-	private void sendLeave(DarknetPeerNode darkPeer, byte[] pubKeyHash) {
+	private void sendLeave(DarknetPeerNode darkPeer, ByteArray pubKeyHash) {
 		Logger.minor(this, "Sent leave in room "+globalIdentifier+" to "+darkPeer.getName());
 		sendBase(darkPeer, formatPubKeyHash(pubKeyHash), N2NChatPlugin.LEAVE);
 	}
@@ -528,12 +535,12 @@ public class ChatRoom {
 	 * @param pubKeyHash public key hash to check
 	 * @return true if an invite to that peer is pending, false if not.
 	 */
-	public boolean inviteSentTo(byte[] pubKeyHash) {
+	public boolean inviteSentTo(ByteArray pubKeyHash) {
 		return sentInvites.containsKey(pubKeyHash);
 	}
 
 	public boolean sendInviteOffer(DarknetPeerNode darkPeer, String username) {
-		if (sentInvites.containsKey(darkPeer.getPubKeyHash())) {
+		if (sentInvites.containsKey(new ByteArray(darkPeer.getPubKeyHash()))) {
 			return false;
 		}
 
@@ -546,16 +553,16 @@ public class ChatRoom {
 		}
 		Logger.minor(this, "Sent invite offer for room "+globalIdentifier+" to "+darkPeer.getName());
 		sendBase(darkPeer, fs, N2NChatPlugin.OFFER_INVITE);
-		sentInvites.put(darkPeer.getPubKeyHash(), username);
+		sentInvites.put(new ByteArray(darkPeer.getPubKeyHash()), username);
 		updateParticipantListing();
 		return true;
 	}
 
 	public boolean sendInviteRetract(DarknetPeerNode darkPeer) {
-		if (sentInvites.containsKey(darkPeer.getPubKeyHash())) {
+		if (sentInvites.containsKey(new ByteArray(darkPeer.getPubKeyHash()))) {
 			Logger.minor(this, "Retracted "+darkPeer.getName()+"'s invite to room "+globalIdentifier);
 			sendBase(darkPeer, null, N2NChatPlugin.RETRACT_INVITE);
-			sentInvites.remove(darkPeer.getPubKeyHash());
+			sentInvites.remove(new ByteArray(darkPeer.getPubKeyHash()));
 			return true;
 		} else {
 			Logger.warning(this, "Attempted to remove "+darkPeer.getName()+"'s invite to room "+globalIdentifier);
@@ -564,14 +571,15 @@ public class ChatRoom {
 	}
 
 	private boolean receiveInvite(DarknetPeerNode darkPeer, boolean inviteParticipant) {
-		if (!sentInvites.containsKey(darkPeer.getPubKeyHash())) {
+		ByteArray darkPeerHash = new ByteArray(darkPeer.getPubKeyHash());
+		if (!sentInvites.containsKey(darkPeerHash)) {
 			Logger.warning(this, "Received message from "+darkPeer.getName()+" about nonexistent invite to room "+globalIdentifier);
 			return false;
 		}
 		if (inviteParticipant) {
-			inviteParticipant(darkPeer, sentInvites.get(darkPeer.getPubKeyHash()));
+			inviteParticipant(darkPeer, sentInvites.get(darkPeerHash));
 		}
-		sentInvites.remove(darkPeer.getPubKeyHash());
+		sentInvites.remove(darkPeerHash);
 		updateParticipantListing();
 		return true;
 	}
@@ -592,17 +600,17 @@ public class ChatRoom {
 	 * @param fs To add fields to. Can be null, in which case a new one will be created.
 	 * @return Empty or unmodified SimpleFieldSet if pubKeyHash is null.
 	 */
-	private SimpleFieldSet formatPubKeyHash(byte[] pubKeyHash, SimpleFieldSet fs) {
+	private SimpleFieldSet formatPubKeyHash(ByteArray pubKeyHash, SimpleFieldSet fs) {
 		if (fs == null) {
 			fs = new SimpleFieldSet(true);
 		}
 		if (pubKeyHash != null) {
-			fs.putSingle("pubKeyHash", Base64.encode(pubKeyHash));
+			fs.putSingle("pubKeyHash", Base64.encode(pubKeyHash.getBytes()));
 		}
 		return fs;
 	}
 
-	private SimpleFieldSet formatPubKeyHash(byte[] pubKeyHash) {
+	private SimpleFieldSet formatPubKeyHash(ByteArray pubKeyHash) {
 		return formatPubKeyHash(pubKeyHash, null);
 	}
 
@@ -641,7 +649,7 @@ public class ChatRoom {
 		 * @param peerNode If directly connected, used to send messages. If not directly connected, only this
 		 * node is authorized to route things for this participant.
 		 */
-		public Participant(byte[] publicKeyHash, String name, DarknetPeerNode peerNode, boolean directlyConnected,
+		public Participant(ByteArray publicKeyHash, String name, DarknetPeerNode peerNode, boolean directlyConnected,
 			        boolean locallyInvited) {
 			this.name = name;
 			this.peerNode = peerNode;
@@ -651,11 +659,12 @@ public class ChatRoom {
 			//Bits 24-31 map to ~40%-70% luminosity to keep the colors distinguishable and visible on white.
 			//Bits 0-23 are used by Color for RGB.
 			//TODO: Assuming hash is at least 4 bytes. How long is this actually? Check DarknetCrypto.
-			assert(publicKeyHash.length >= 4);
-			int hashInt = publicKeyHash[0] | (publicKeyHash[1] << 8) | (publicKeyHash[2] << 16);
+			byte[] publicKeyHashBytes = publicKeyHash.getBytes();
+			assert(publicKeyHashBytes.length >= 4);
+			int hashInt = publicKeyHashBytes[0] | (publicKeyHashBytes[1] << 8) | (publicKeyHashBytes[2] << 16);
 			HSLColor colorManipulator = new HSLColor(new Color(hashInt));
 			//[3] for luminance bit. 127 (-128) is the maximum value of a signed byte, and is scaled 20 from 60.
-			float luminance = publicKeyHash[3]/127*15f+55f;
+			float luminance = publicKeyHashBytes[3]/127*15f+55f;
 			colorManipulator.adjustLuminance(luminance);
 			nameColor = colorManipulator.getRGB();
 		}

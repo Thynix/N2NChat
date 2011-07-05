@@ -291,7 +291,7 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 			} catch (FSParseException e) {
 				//Could not parse global identifier. Dropping.
 				//TODO: Add localized, logged error message.
-				Logger.error(this, "Failed to parse global identifier from "+((DarknetPeerNode) source).getName()+'.');
+				Logger.error(this, "Failed to parse global identifier from " + ((DarknetPeerNode) source).getName() + '.');
 				return;
 			}
 
@@ -335,7 +335,7 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 
 			//A darknet peer accepted an invite this node offered. Add them to the chat room.
 			if (type == ACCEPT_INVITE) {
-				Logger.minor(this, "Received invite accept for room "+globalIdentifier+" from "+darkSource.getName());
+				Logger.minor(this, "Received invite accept for room " + globalIdentifier + " from " + darkSource.getName());
 				chatRooms.get(globalIdentifier).receiveInviteAccept(darkSource);
 				return;
 			//A darknet peer rejected an invite this node offered; remove it from list of pending invites.
@@ -346,13 +346,13 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 			}
 
 			//Get identity hash for use in a message, join, or leave.
-			byte[] pubKeyHash;
+			ByteArray pubKeyHash;
 			try {
-				pubKeyHash = Base64.decode(fs.getString("pubKeyHash"));
+				pubKeyHash = new ByteArray(Base64.decode(fs.getString("pubKeyHash")));
 			} catch (FSParseException e) {
 				//pubKeyHash was not included. This means it pertains to the sender.
 				Logger.minor(this, "Public key hash was not included; assuming sender.");
-				pubKeyHash = darkSource.getPubKeyHash();
+				pubKeyHash = new ByteArray(darkSource.getPubKeyHash());
 			} catch (IllegalBase64Exception e) {
 				//Could not parse identity hash. Dropping.
 				//TODO: Add localized, logged error message.
@@ -366,10 +366,11 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 					chatRooms.get(globalIdentifier).receiveMessage(
 					        pubKeyHash,
 					        new Date(fs.getLong("timeComposed")),
-					        darkSource.getPubKeyHash(), new String(Base64.decode(fs.get("text"))));
+					        new ByteArray(darkSource.getPubKeyHash()),
+					        new String(Base64.decode(fs.get("text"))));
 				} catch (FSParseException e) {
 					//TODO: Add localized, logged error message.
-					Logger.error(this, "Failed to parse date from "+darkSource.getName()+'.');
+					Logger.error(this, "Failed to parse date from " + darkSource.getName() + '.');
 				} catch (IllegalBase64Exception e) {
 					Logger.error(this, "Invalid base64 encoding on message text", e);
 				}
@@ -386,7 +387,7 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 			//Someone left a chat room.
 			} else if (type == LEAVE) {
 				chatRooms.get(globalIdentifier).removeParticipant(pubKeyHash,
-				        darkSource.getPubKeyHash(), false);
+				        new ByteArray(darkSource.getPubKeyHash()), false);
 			}
 		}
 	};
