@@ -39,10 +39,16 @@ public class ByteArrayTest extends TestCase {
 		assertTrue(Arrays.equals(a.getBytes(), BytesA));
 	}
 
+	/**
+	 * Tests that Arrays.hashCode is used. This test isn't needed - just some kind of hash will do.
+	 */
 	public void testHashCode() {
 		assertEquals(Arrays.hashCode(BytesA), a.hashCode());
 	}
 
+	/**
+	 * Tests various kinds of equality.
+	 */
 	public void testEquality() {
 		//Same address
 		assertTrue(a.equals(a));
@@ -52,5 +58,22 @@ public class ByteArrayTest extends TestCase {
 		assertFalse(a.equals(new ByteArray(BytesB)));
 		//Something other than a ByteArray
 		assertFalse(a.equals("Something else"));
+	}
+
+	/**
+	 * Tests whether the byte[] problem which prevents them from being used as HashMap keys exists.
+	 * This test will pass if byte arrays are unsuitable for HashMap keys. If it fails, it may be that byte arrays
+	 * are now suitable for HashMap keys, and that the ByteArray wrapper is no longer needed.
+	 */
+	public void testRawByteArray() {
+		HashMap<byte[], String> hashMap = new HashMap<byte[], String>();
+		hashMap.put(BytesA, "a string");
+		//It works if testing the object at the same address,
+		assertTrue(hashMap.containsKey(BytesA));
+		//but not with the same value
+		assertTrue(Arrays.equals(BytesA, BytesA.clone()));
+		//at a different address.
+		assertFalse(hashMap.containsKey(BytesA.clone()));
+
 	}
 }
