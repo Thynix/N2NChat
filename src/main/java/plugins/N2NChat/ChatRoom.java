@@ -6,15 +6,10 @@ import freenet.support.Base64;
 import freenet.support.HTMLNode;
 import freenet.support.Logger;
 import freenet.support.SimpleFieldSet;
-import sun.nio.ch.DevPollSelectorProvider;
 
 import java.awt.Color;
 import java.io.UnsupportedEncodingException;
-import java.util.HashMap;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.Set;
-import java.util.Arrays;
+import java.util.*;
 
 /**
  * The ChatRoom class keeps track of what has been said in a chat room, parses new messages, formats them, and is
@@ -23,19 +18,26 @@ import java.util.Arrays;
 public class ChatRoom {
 
 	private Calendar lastMessageReceived;
-	/**Everyone in this room. The key is the public key hash, the value is the participant object.*/
+	/**
+	 * All participants present in this room except for the local node.
+	 * The key is the public key hash, the value is the Participant object.
+	 */
 	private HashMap<ByteArray, Participant> participants;
 	//TODO: Move list of DarknetPeerNodes to N2NChatPlugin and check for alternate routes from there.
 	private HashMap<ByteArray, DarknetPeerNode> peerNodes;
-	/**Invites sent out to this room. Key is public key hash of the peer the invite was sent to,
-	 * Value is the offered username.
+	/**
+	 * Invites sent out to this room. Key is public key hash of the peer the invite was sent to,
+	 * Value is their NameEntry.
 	 */
-	private HashMap<ByteArray, String> sentInvites;
+	private HashMap<ByteArray, NameEntry> sentInvites;
 	private HTMLNode log;
 	private HTMLNode participantListing;
 	private String roomName;
 	private long globalIdentifier;
-	private String username;
+	/**
+	 * Username and styling of this node in this room.
+	 */
+	private NameEntry username;
 	private PluginL10n l10n;
 
 	//TODO: Participant icons for whether messages sent to them have gone through. Would require ACKs in the case of
@@ -51,18 +53,18 @@ public class ChatRoom {
 	public ChatRoom(String roomName, long globalIdentifier, String username, DarknetPeerNode[] peerNodes, PluginL10n l10n){
 		this.roomName = roomName;
 		this.globalIdentifier = globalIdentifier;
-		this.username = username;
+		this.username = new NameEntry(username, "font-weight:bold;", true);
 		this.l10n = l10n;
 		updatePeerNodes(peerNodes);
 		participants = new HashMap<ByteArray, Participant>();
-		sentInvites = new HashMap<ByteArray, String>();
+		sentInvites = new HashMap<ByteArray, NameEntry>();
 		lastMessageReceived = Calendar.getInstance();
 		lastMessageReceived.setTime(new Date());
 		//TODO: What size should this box be? Will the automatic size be reasonable?
 		//TODO: Likely full width with limited height.
 		log = new HTMLNode("div", "style", "overflow:scroll;background-color:white;height:100%");
-		//Start out the chat by setting the day.
 		log.addChild("ul", "style", "list-style-type:none;");
+		//Start out the chat by setting the day.
 		log.addChild("li", N2NChatPlugin.dayChangeFormat.format(lastMessageReceived.getTime()));
 		updateParticipantListing();
 	}
@@ -79,8 +81,8 @@ public class ChatRoom {
 	public ChatRoom(String roomName, long globalIdentifier, String username, DarknetPeerNode[] peerNodes,
 	        PluginL10n l10n, DarknetPeerNode invitedBy) {
 		this(roomName, globalIdentifier, username, peerNodes, l10n);
-		participants.put(new ByteArray(invitedBy.getPubKeyHash()),
-		        new Participant(new ByteArray(invitedBy.getPubKeyHash()), invitedBy.getName(), invitedBy, true, false));
+		ByteArray pubKeyHash = new ByteArray(invitedBy.getPubKeyHash());
+		participants.put(pubKeyHash, new Participant(invitedBy.getName(), pubKeyHash, invitedBy, true, false));
 		updateParticipantListing();
 	}
 
@@ -158,9 +160,11 @@ public class ChatRoom {
 			return false;
 		}
 		boolean directlyConnected = peerNodes.containsKey(publicKeyHash);
-		participants.put(publicKeyHash, new Participant(publicKeyHash, name, peerNode, directlyConnected,
-		        invitedLocally));
-		log.addChild("li", l10n("joined", "name", name));
+		Participant newPart = new Participant(name, publicKeyHash, peerNode, directlyConnected, invitedLocally);
+		participants.put(publicKeyHash, newPart);
+		HTMLNode line = log.addChild("li");
+		line.addChild("div", "style", newPart.nameStyle+"display:inline;", name);
+		line.addChild("#", ' '+l10n("joined"));
 		updateParticipantListing();
 		return true;
 	}
@@ -176,7 +180,6 @@ public class ChatRoom {
 	 * @return True if the participant was removed; false if not. More detailed error messages are written to
 	 * the log.
 	 */
-	//TODO: Is putting a public key hash to string a reasonable thing to do in the log? No, it's an array!
 	//TODO: Should this return a more descriptive state? Will other things care whether the removal was successful?
 	public boolean removeParticipant(ByteArray removePubKeyHash, ByteArray senderPubKeyHash, boolean connectionProblem) {
 		String error = checkPresenceAndAuthorization("remove.", removePubKeyHash, senderPubKeyHash);
@@ -184,9 +187,9 @@ public class ChatRoom {
 			Logger.warning(this, l10n("removeReceived",
 				new String[]{"removeName", "removeHash", "fromName", "fromHash"},
 				new String[]{findName(removePubKeyHash, removePubKeyHash),
-					Base64.encode(removePubKeyHash.getBytes()),
-					peerNodes.get(senderPubKeyHash).getName(),
-					Base64.encode(senderPubKeyHash.getBytes())})
+				        Base64.encode(removePubKeyHash.getBytes()),
+				        peerNodes.get(senderPubKeyHash).getName(),
+				        Base64.encode(senderPubKeyHash.getBytes())})
 				+ ' ' + error + ' ' + l10n("roomInfo",
 				new String[]{"roomName", "globalIdentifier"},
 				new String[]{roomName, String.valueOf(globalIdentifier)}));
@@ -195,25 +198,37 @@ public class ChatRoom {
 
 		//The identity to remove and the sender of the request are in the chat room, and the sender of the
 		//request is authorized to remove the identity.
+		Participant removedParticipant = participants.get(removePubKeyHash);
 		if (connectionProblem) {
-			log.addChild("li", l10n("lostConnection", "name", participants.get(removePubKeyHash).name));
+			HTMLNode line = log.addChild("li");
+			line.addChild("div", "style", removedParticipant.nameStyle+"display:inline;", removedParticipant.name+' ');
+			line.addChild("#", ' '+l10n("lostConnection"));
 		} else {
-			log.addChild("li", l10n("left", "name", participants.get(removePubKeyHash).name));
+			HTMLNode line = log.addChild("li");
+			line.addChild("div", "style", removedParticipant.nameStyle+"display:inline;", removedParticipant.name+' ');
+			line.addChild("#", ' '+l10n("left"));
 		}
 		participants.remove(removePubKeyHash);
-		updateParticipantListing();
 
-		Set<ByteArray> identityHashes = participants.keySet();
-		for (ByteArray identityHash : identityHashes) {
+		Set<ByteArray> keySet = participants.keySet();
+		for (ByteArray pubKeyHash : keySet) {
+			Participant participant = participants.get(pubKeyHash);
 			//Remove from the room any other participants the leaving node routed for.
-			if (removePubKeyHash.equals(new ByteArray(participants.get(identityHash).peerNode.getPubKeyHash()))) {
-				participants.remove(identityHash);
-				log.addChild("li", l10n("lostConnection", "name", participants.get(identityHash).name));
+			if (removePubKeyHash.equals(new ByteArray(participant.peerNode.getPubKeyHash()))) {
+				//TODO: This assumes from a localization standpoint that the name comes before the
+				//TODO: phrase. How to add HTML tags that aren't sanitized away in a localized string?
+				HTMLNode line = log.addChild("li");
+				line.addChild("div", "style", participant.nameStyle+"display:inline;", participant.name);
+				line.addChild("#", ' '+l10n("lostConnection"));
+				participants.remove(pubKeyHash);
 			//Send this disconnect to all participants this node invited, provided it didn't deliver this.
-			} else if (participants.get(identityHash).locallyInvited && !senderPubKeyHash.equals(identityHash)) {
-				sendLeave(participants.get(identityHash).peerNode, removePubKeyHash);
+			//pubKeyHash will be equal to the peerNode.getPubKeyHash() because it's locally invited
+			//and thus directly connected.
+			} else if (participant.locallyInvited && !senderPubKeyHash.equals(pubKeyHash)) {
+				sendLeave(participant.peerNode, removePubKeyHash);
 			}
 		}
+		updateParticipantListing();
 		return true;
 	}
 
@@ -357,16 +372,13 @@ public class ChatRoom {
 		//Ex: [ 04:38:30 PM ]
 		//Ex: Tooltip of time composed.
 		HTMLNode messageLine = log.addChild("li", "title",
-		        l10n("composed", "time", N2NChatPlugin.messageComposedFormat.format(timeComposed.getTime())),
-		        "[ "+ N2NChatPlugin.messageReceivedFormat.format(now.getTime())+" ] ");
+		        l10n("composed", "time", N2NChatPlugin.composedFormat.format(timeComposed.getTime())),
+		        "[ "+ N2NChatPlugin.receivedFormat.format(now.getTime())+" ] ");
 
 		Participant user = participants.get(composedBy);
 		//Ex: BillyBob:
 		//With text color based on public key hash.
-		Color textColor = user.nameColor;
-		String name = user.name;
-		messageLine.addChild("div", "style", "color:rgb("+textColor.getRed()+','+textColor.getGreen()+','+
-		        textColor.getBlue()+");text-shadow:2px 2px 4px #000000;display:inline", name+": ");
+		messageLine.addChild("div", "style", user.nameStyle+"display:inline;", user.name+": ");
 
 		//Ex: Blah blah blah.
 		messageLine.addChild("#", message);
@@ -386,45 +398,47 @@ public class ChatRoom {
 	}
 
 	private void updateParticipantListing() {
-		//Sort participants alphabetically.
-		//Participant[] sortedParticipants = participants.values().toArray(new Participant[participants.size()]);
-		//Arrays.sort(sortedParticipants);
+		//Sort participants, pending invites, and this node alphabetically.
+		ArrayList<NameEntry> names = new ArrayList<NameEntry>(participants.values());
+		names.addAll(sentInvites.values());
+		names.add(username);
+		Collections.sort(names);
 
 		participantListing = new HTMLNode("ul", "style", "overflow:scroll;background-color:white;list-style-type:none;");
-		participantListing.addChild("li", l10n("totalParticipants", "numberOf",
+		participantListing.addChild("li", l10n("participantsPresent", "numberOf",
 		        String.valueOf(participants.size()+1)));
 
-		//TODO: Username coloring
-		//List self
-		participantListing.addChild("li", username+" (You)");
-
 		//List participants with colored name text and routing information on tooltip.
-		for (ByteArray pubKeyHash : participants.keySet()) {
-			String routing;
-			Participant participant = participants.get(pubKeyHash);
-			if (participant.directlyConnected) {
-				routing = l10n("connectedDirectly",
-				        new String[] { "nodeName", "nodeID" },
-				        new String[] { participant.peerNode.getName(),
-				                Base64.encode(participant.peerNode.getPubKeyHash()) });
+		for (NameEntry entry : names) {
+			//TODO: How do browsers behave given an empty title?
+			String routing = "";
+			String suffix = "";
+			if (entry instanceof Participant) {
+				//It's a participant, list connection information on tooltip.
+				Participant participant = (Participant)entry;
+				if (participant.directlyConnected) {
+					routing = l10n("connectedDirectly",
+					        new String[] { "nodeName", "nodeID" },
+					        new String[] { participant.peerNode.getName(),
+					                Base64.encode(participant.peerNode.getPubKeyHash()) });
+				} else {
+					routing = l10n("connectedThrough",
+						new String[] { "nodeName", "nodeID", "pubKeyHash" },
+						new String[] { participant.peerNode.getName(),
+							Base64.encode(participant.peerNode.getPubKeyHash()),
+							Base64.encode(participant.pubKeyHash.getBytes()) });
+				}
+			} else if (entry.equals(username)) {
+				suffix = " ("+l10n("you")+')';
 			} else {
-				routing = l10n("connectedThrough",
-				        new String[] { "nodeName", "nodeID", "pubKeyHash" },
-				        new String[] { participant.peerNode.getName(),
-				                Base64.encode(participant.peerNode.getPubKeyHash()),
-				                Base64.encode(pubKeyHash.getBytes()) });
+				//It's an invite.TODO: Include which peer this is? It'll only really be an issue
+				//TODO: if usernames can differ from node nicknames.
+				suffix = " ("+l10n("invitePending")+')';
 			}
-			Color nameColor = participant.nameColor;
-			String color = "color:rgb("+nameColor.getRed()+','+nameColor.getGreen()+','+nameColor.getBlue()+");";
 			participantListing.addChild("li",
 			        new String[] { "style", "title" },
-			        new String [] { color+";text-shadow:2px 2px 4px #000000", routing }, participant.name);
-		}
-
-		//List pending invites
-		for (String name : sentInvites.values()) {
-			//TODO: username coloring
-			participantListing.addChild("li", name+" (Invite pending)");
+			        new String[] { entry.nameStyle, routing },
+			        entry.name+suffix);
 		}
 	}
 
@@ -434,7 +448,9 @@ public class ChatRoom {
 		addDateOnDayChange(now);
 
 		//[ 04:38:20 PM ] Username: Blah blah blah.
-		log.addChild("li", "[ "+ N2NChatPlugin.messageReceivedFormat.format(now.getTime())+" ] "+ username +": "+message);
+		HTMLNode line = log.addChild("li", "[ "+ N2NChatPlugin.receivedFormat.format(now.getTime())+" ] ");
+		line.addChild("div", "style", username.nameStyle+"display:inline;", username.name+": ");
+		line.addChild("#", message);
 		lastMessageReceived = now;
 
 		//Send this message to others.
@@ -495,7 +511,8 @@ public class ChatRoom {
 		}
 
 		formatPubKeyHash(composedBy, fs);
-		Logger.minor(this, "Sent message composed " + (composedBy == null ? "locally" : "by " + Base64.encode(composedBy.getBytes())) + " in room " + globalIdentifier + " to " + darkPeer.getName());
+		Logger.minor(this, "Sent message composed " + (composedBy == null ? "locally" : "by " + Base64.encode(
+		        composedBy.getBytes())) + " in room " + globalIdentifier + " to " + darkPeer.getName());
 		sendBase(darkPeer, fs, N2NChatPlugin.MESSAGE);
 	}
 
@@ -540,7 +557,8 @@ public class ChatRoom {
 	}
 
 	public boolean sendInviteOffer(DarknetPeerNode darkPeer, String username) {
-		if (sentInvites.containsKey(new ByteArray(darkPeer.getPubKeyHash()))) {
+		ByteArray pubKeyHash = new ByteArray(darkPeer.getPubKeyHash());
+		if (sentInvites.containsKey(pubKeyHash)) {
 			return false;
 		}
 
@@ -551,9 +569,9 @@ public class ChatRoom {
 		} catch (UnsupportedEncodingException e) {
 			throw new Error("JVM does not support UTF-8! Cannot encode username string!");
 		}
-		Logger.minor(this, "Sent invite offer for room "+globalIdentifier+" to "+darkPeer.getName());
+		Logger.minor(this, "Sent invite offer for room " + globalIdentifier + " to " + darkPeer.getName());
 		sendBase(darkPeer, fs, N2NChatPlugin.OFFER_INVITE);
-		sentInvites.put(new ByteArray(darkPeer.getPubKeyHash()), username);
+		sentInvites.put(pubKeyHash, new NameEntry(username, pubKeyHash));
 		updateParticipantListing();
 		return true;
 	}
@@ -577,7 +595,7 @@ public class ChatRoom {
 			return false;
 		}
 		if (inviteParticipant) {
-			inviteParticipant(darkPeer, sentInvites.get(darkPeerHash));
+			inviteParticipant(darkPeer, sentInvites.get(darkPeerHash).name);
 		}
 		sentInvites.remove(darkPeerHash);
 		updateParticipantListing();
@@ -615,7 +633,7 @@ public class ChatRoom {
 	}
 
 	private String l10n(String key) {
-		return l10n.getBase().getString("room."+key);
+		return l10n.getBase().getString("room." + key);
 	}
 
 	private String l10n(String key, String pattern, String value) {
@@ -628,49 +646,99 @@ public class ChatRoom {
 
 	/**
 	 * Used to keep track of participants in a chat room. Records whether they are directly connected, whether this
-	 * node routes for them, what DarknetPeerNode is used to contact them, and what color their name is.
+	 * node routes for them, what DarknetPeerNode is used to contact them, and what CSS styling their name uses.
 	 */
-	private class Participant implements Comparable<Participant> {
+	private class Participant extends NameEntry {
 
 		public final boolean directlyConnected;
 		public final boolean locallyInvited;
-		public final String name;
 		public final DarknetPeerNode peerNode;
-		public final Color nameColor;
 
 		/**
-		 * Constructor for a participant. Does nothing more than assign values.
-		 * @param publicKeyHash Public key hash of the participant node. Used to calculate name color; not stored.
 		 * @param directlyConnected Whether this participant is directly connected to this node. If so,messages
 		 * will be sent to peerNode. If not, peerNode is authorized to route their messages and remove request.
+		 * @param pubKeyHash The public key hash of the participant. Used for name CSS styling.
 		 * @param locallyInvited Whether this node invited the participant. If so, this node will route their
 		 * anything from them to all other directly connected peers.
 		 * @param name The name of this participant.
 		 * @param peerNode If directly connected, used to send messages. If not directly connected, only this
 		 * node is authorized to route things for this participant.
 		 */
-		public Participant(ByteArray publicKeyHash, String name, DarknetPeerNode peerNode, boolean directlyConnected,
+		public Participant(String name, ByteArray pubKeyHash, DarknetPeerNode peerNode, boolean directlyConnected,
 			        boolean locallyInvited) {
-			this.name = name;
+			super(name, pubKeyHash);
 			this.peerNode = peerNode;
 			this.directlyConnected = directlyConnected;
 			this.locallyInvited = locallyInvited;
+		}
+	}
 
-			//Bits 24-31 map to ~40%-70% luminosity to keep the colors distinguishable and visible on white.
-			//Bits 0-23 are used by Color for RGB.
-			//TODO: Assuming hash is at least 4 bytes. How long is this actually? Check DarknetCrypto.
-			byte[] publicKeyHashBytes = publicKeyHash.getBytes();
-			assert(publicKeyHashBytes.length >= 4);
-			int hashInt = publicKeyHashBytes[0] | (publicKeyHashBytes[1] << 8) | (publicKeyHashBytes[2] << 16);
-			HSLColor colorManipulator = new HSLColor(new Color(hashInt));
-			//[3] for luminance bit. 127 (-128) is the maximum value of a signed byte, and is scaled 20 from 60.
-			float luminance = publicKeyHashBytes[3]/127*15f+55f;
-			colorManipulator.adjustLuminance(luminance);
-			nameColor = colorManipulator.getRGB();
+	/**
+	 * Base class for Participant. Tracks name and name CSS styling. Used for pending invites and one's own name
+	 * in the participants panel. This is done so they can all be alphabetically sorted by name and still colored.
+	 * It also includes the public key hash used to style, if applicable, for use in tooltips.
+	 */
+	private class NameEntry implements Comparable<NameEntry> {
+
+		public final String name;
+		public final String nameStyle;
+		public final ByteArray pubKeyHash;
+
+		/**
+		 * Drop shadow for legibility
+		 */
+		private final String additionalStyling = "text-shadow:2px 2px 4px #000000;";
+
+		/**
+		 * Initializes a NameEntry with a name and styling based off a public key hash.
+		 * @param name The name of the entry.
+		 * @param pubKeyHash The public key hash used to generate the color for that entry.
+		 */
+		public NameEntry(String name, ByteArray pubKeyHash) {
+			this.name = name;
+			nameStyle = hashColor(pubKeyHash.getBytes())+additionalStyling;
+			this.pubKeyHash = pubKeyHash;
 		}
 
-		public int compareTo(Participant other) {
-			return name.compareTo(other.name);
+		/**
+		 * Initializes a NameEntry with a name and an explicitly set nameStyle.
+		 * @param name The name of the NameEntry.
+		 * @param nameStyle The nameStyle of the entry.
+		 * @param applyAdditionalStyling Whether the explicitly specified nameStyle should be appended with
+		 * additionalStyling.
+		 */
+		public NameEntry(String name, String nameStyle, boolean applyAdditionalStyling) {
+			this.name = name;
+			if (applyAdditionalStyling) {
+				this.nameStyle = nameStyle+additionalStyling;
+			} else {
+				this.nameStyle = nameStyle;
+			}
+			pubKeyHash = null;
+		}
+
+		/**
+		 * Returns CSS coloring for a given ByteArray,
+		 * @param pubKeyHash An identifying ByteArray with at least four bytes.
+		 * @return CSS styling: a color based on the bytes and a drop shadow.
+		 */
+		protected String hashColor(byte[] pubKeyHash) {
+			//Bits 24-31 map to ~40%-80% luminosity to keep the colors distinguishable and visible on white.
+			//Bits 0-23 are used by Color for RGB.
+			//TODO: Assuming hash is at least 4 bytes. How long is this actually? Check DarknetCrypto.
+			assert(pubKeyHash.length >= 4);
+			int hashInt = pubKeyHash[0] | (pubKeyHash[1] << 8) | (pubKeyHash[2] << 16);
+			HSLColor colorManipulator = new HSLColor(new Color(hashInt));
+			//[3] for luminance bit. 127 (-128) is the max value of a signed byte; scaled +/-20 from 60.
+			float luminance = pubKeyHash[3]/127*20f+60f;
+			colorManipulator.adjustLuminance(luminance);
+			Color nameColor = colorManipulator.getRGB();
+			return "color:rgb("+nameColor.getRed()+','+nameColor.getGreen()+','+nameColor.getBlue()+");";
+		}
+
+		//Alphabetical sorting
+		public int compareTo(NameEntry other) {
+			return this.name.compareToIgnoreCase(other.name);
 		}
 	}
 }

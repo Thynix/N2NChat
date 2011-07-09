@@ -77,10 +77,10 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 	public static final SimpleDateFormat dayChangeFormat = new SimpleDateFormat("EEEE, MMMM dd, yyyy");
 
 	/** Date format used for the "time received" timestamp on messages. Ex: 04:48:30 PM */
-	public static final SimpleDateFormat messageReceivedFormat = new SimpleDateFormat("hh:mm:ss a");
+	public static final SimpleDateFormat receivedFormat = new SimpleDateFormat("hh:mm:ss a");
 
 	/** Date format used for the "time composed" timestamp on messages. Ex: 04:48:30 PM, June 1, 2011*/
-	public static final SimpleDateFormat messageComposedFormat = new SimpleDateFormat("hh:mm:ss a, MMMM dd, yyyy");
+	public static final SimpleDateFormat composedFormat = new SimpleDateFormat("hh:mm:ss a, MMMM dd, yyyy");
 
 	//
 	// MEMBER VARIABLES
