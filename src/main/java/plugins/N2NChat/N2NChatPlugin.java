@@ -15,8 +15,12 @@
 
 package plugins.N2NChat;
 
+import freenet.client.filter.ContentFilter;
+import freenet.clients.http.RedirectException;
+import freenet.clients.http.Toadlet;
+import freenet.clients.http.ToadletContext;
+import freenet.clients.http.ToadletContextClosedException;
 import freenet.l10n.BaseL10n.LANGUAGE;
-import freenet.l10n.NodeL10n;
 import freenet.l10n.PluginL10n;
 import freenet.node.DarknetPeerNode;
 import freenet.node.FSParseException;
@@ -27,9 +31,15 @@ import freenet.support.Base64;
 import freenet.support.IllegalBase64Exception;
 import freenet.support.Logger;
 import freenet.support.SimpleFieldSet;
+import freenet.support.api.HTTPRequest;
+import freenet.support.io.Closer;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
+import java.net.URLConnection;
+import java.net.URI;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
@@ -103,6 +113,7 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 
 	private MainPageToadlet mpt;
 	private DisplayChatToadlet displayChatToadlet;
+	private CSSGet cssGet;
 
 	//
 	// ACCESSORS
@@ -134,21 +145,23 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 	 * {@inheritDoc}
 	 */
 	@Override
-	public void runPlugin(PluginRespirator pluginRespirator) {
-		this.pluginRespirator = pluginRespirator;
+	public void runPlugin(PluginRespirator pr) {
+		this.pluginRespirator = pr;
 		this.chatRooms = new HashMap<Long, ChatRoom>();
 		this.receivedInvites = new HashMap<Long, chatInvite>();
 
 		//TODO: Need to store and retrieve config somehow.
 		mpt = new MainPageToadlet(this);
-		pluginRespirator.getPageMaker().addNavigationCategory(mpt.path(), "plugin.menuName", "plugin.menuName.tooltip", this);
-		pluginRespirator.getToadletContainer().register(mpt,
+		pr.getPageMaker().addNavigationCategory(mpt.path(), "plugin.menuName", "plugin.menuName.tooltip", this);
+		pr.getToadletContainer().register(mpt,
 		         "plugin.menuName", mpt.path(), true, "plugin.mainPage", "plugin.mainPage.tooltip", false, mpt);
-		pluginRespirator.getToadletContainer().register(mpt, null, mpt.path(), true, false);
+		pr.getToadletContainer().register(mpt, null, mpt.path(), true, false);
 
 		displayChatToadlet = new DisplayChatToadlet(this);
-		pluginRespirator.getToadletContainer().register(displayChatToadlet, null, displayChatToadlet.path(), true, false);
-		pluginRespirator.getNode().registerNodeToNodeMessageListener(N2N_MESSAGE_TYPE_CHAT, N2NChatListener);
+		cssGet = new CSSGet(pr);
+		pr.getToadletContainer().register(displayChatToadlet, null, displayChatToadlet.path(), true, false);
+		pr.getToadletContainer().register(cssGet, null, cssGet.path(), true, false);
+		pr.getNode().registerNodeToNodeMessageListener(N2N_MESSAGE_TYPE_CHAT, N2NChatListener);
 	}
 
 	/**
@@ -167,6 +180,7 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 		//Unregister pages
 		pluginRespirator.getToadletContainer().unregister(mpt);
 		pluginRespirator.getToadletContainer().unregister(displayChatToadlet);
+		pluginRespirator.getToadletContainer().unregister(cssGet);
 	}
 
 	//
@@ -235,6 +249,43 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 	@Override
 	public String getVersion() {
 		return VERSION;
+	}
+
+	//
+	// CHAT-SPECIFIC METHODS
+	//
+
+	/**
+	 * Returns the CSS stylesheet. Based off of Bombe's CSSWebInterfaceToadlet.
+	 */
+	public class CSSGet extends Toadlet {
+
+		@Override
+		public String path() {
+			return "/n2n-chat/css/n2nchat.css";
+		}
+
+		public CSSGet(PluginRespirator pr) {
+			super(pr.getHLSimpleClient());
+		}
+
+		public void handleMethodGET(URI uri, HTTPRequest request, ToadletContext ctx) throws ToadletContextClosedException, IOException, RedirectException {
+			URLConnection inputURL = getClass().getResource("/css/n2nchat.css").openConnection();
+			InputStream inputStream = null;
+			byte[] output = new byte[0];
+			try {
+				inputURL.setUseCaches(false);
+				inputStream = inputURL.getInputStream();
+				if (inputStream != null) {
+					ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+					ContentFilter.filter(inputStream, outputStream, "text/css", uri, null, null, null);
+					output = outputStream.toByteArray();
+				}
+				writeReply(ctx, 200, "text/css", "OK", output, 0, output.length);
+			} finally {
+				Closer.close(inputStream);
+			}
+		}
 	}
 
 	public static void sendInvite(long globalIdentifier, DarknetPeerNode darkPeer, int type) {

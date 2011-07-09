@@ -1,6 +1,5 @@
 package plugins.N2NChat;
 
-import com.sun.org.apache.bcel.internal.generic.NEW;
 import freenet.clients.http.*;
 import freenet.l10n.NodeL10n;
 import freenet.l10n.PluginL10n;
@@ -126,9 +125,9 @@ public class MainPageToadlet extends Toadlet implements LinkEnabledCallback {
 			receivedInvites.remove(globalIdentifier);
 		}
 
-		//TODO: Localization
 		//List current chat rooms
-		PageNode pn = ctx.getPageMaker().getPageNode("Chat Room Listing", ctx);
+		PageNode pn = ctx.getPageMaker().getPageNode(l10n("chatRoomListing"), ctx);
+		pn.addCustomStyleSheet("/n2n-chat/css/n2nchat.css");
 		HTMLNode content = pn.content;
 		HTMLNode roomListing = content.addChild("ul",
 		        new String[] { "class", "style" },

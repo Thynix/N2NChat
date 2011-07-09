@@ -3,8 +3,8 @@ package plugins.N2NChat;
 import freenet.clients.http.*;
 import freenet.l10n.NodeL10n;
 import freenet.l10n.PluginL10n;
-import freenet.node.Node;
 import freenet.node.DarknetPeerNode;
+import freenet.node.Node;
 import freenet.pluginmanager.PluginRespirator;
 import freenet.support.Base64;
 import freenet.support.HTMLNode;
@@ -118,6 +118,7 @@ public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 			ChatRoom chatRoom = chatRooms.get(globalIdentifier);
 			assert(chatRoom != null);
 			PageNode pn = ctx.getPageMaker().getPageNode(chatRoom.getRoomName(), ctx);
+			pn.addCustomStyleSheet("/n2n-chat/css/n2nchat.css");
 
 			//So that the members and messages pane share vertical size.
 			HTMLNode panes = pn.content.addChild("div", "style", "display:table;width:100%");

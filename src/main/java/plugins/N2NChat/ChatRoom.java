@@ -7,7 +7,7 @@ import freenet.support.HTMLNode;
 import freenet.support.Logger;
 import freenet.support.SimpleFieldSet;
 
-import java.awt.Color;
+import java.awt.*;
 import java.io.UnsupportedEncodingException;
 import java.util.*;
 
