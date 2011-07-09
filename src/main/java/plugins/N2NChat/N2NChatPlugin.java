@@ -141,8 +141,9 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 
 		//TODO: Need to store and retrieve config somehow.
 		mpt = new MainPageToadlet(this);
-		//pluginRespirator.getToadletContainer().register(mpt,
-		//         "FProxyToadlet.categoryFriends", mpt.path(), true, "N2NChatRoom.chatName", "", true, mpt);
+		pluginRespirator.getPageMaker().addNavigationCategory(mpt.path(), "plugin.menuName", "plugin.menuName.tooltip", this);
+		pluginRespirator.getToadletContainer().register(mpt,
+		         "plugin.menuName", mpt.path(), true, "plugin.mainPage", "plugin.mainPage.tooltip", false, mpt);
 		pluginRespirator.getToadletContainer().register(mpt, null, mpt.path(), true, false);
 
 		displayChatToadlet = new DisplayChatToadlet(this);
@@ -159,6 +160,10 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 		for (ChatRoom chatRoom : chatRooms.values()) {
 			chatRoom.disconnect();
 		}
+
+		//Unregister category
+		pluginRespirator().getPageMaker().removeNavigationCategory("plugin.menuName");
+
 		//Unregister pages
 		pluginRespirator.getToadletContainer().unregister(mpt);
 		pluginRespirator.getToadletContainer().unregister(displayChatToadlet);

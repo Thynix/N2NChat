@@ -136,7 +136,7 @@ public class MainPageToadlet extends Toadlet implements LinkEnabledCallback {
 		for (ChatRoom chatRoom : chatRooms.values()) {
 			HTMLNode roomEntry = roomListing.addChild("li");
 			roomEntry.addChild("a", "href", DisplayChatToadlet.PATH + "?room=" + chatRoom.getGlobalIdentifier(),
-				chatRoom.getRoomName());
+			        chatRoom.getRoomName());
 			HTMLNode disconnectForm = ctx.addFormChild(roomEntry, path(), "disconnect");
 			disconnectForm.addChild("input",
 			        new String[] { "type", "name", "value" },
