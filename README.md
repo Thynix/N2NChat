@@ -61,9 +61,11 @@ maintains HashMaps which contain all ChatRooms and track received invitations.
 The N2NChatPlugin object handles:
 
 Received:
+
 - Invitation offers and retractions
 
 Sending:
+
 - Invitation acceptance and rejection
 
 ### MainPageToadlet
