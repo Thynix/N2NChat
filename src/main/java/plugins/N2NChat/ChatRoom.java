@@ -134,8 +134,8 @@ public class ChatRoom {
 		/*TODO: Query directly connected participants for backup routing paths.*/
 		if (addParticipant(joinedPublicKeyHash, name, routedBy, false)) {
 			for (ByteArray pubKeyHash : participants.keySet()) {
-				//Route this join to all participants this node routes for, provided the join was not received from them.
-				if (participants.get(pubKeyHash).locallyInvited && !pubKeyHash.equals(new ByteArray(routedBy.getPubKeyHash()))) {
+				//Route this join to all directly connected participants,
+				if (participants.get(pubKeyHash).directlyConnected && !pubKeyHash.equals(new ByteArray(routedBy.getPubKeyHash()))) {
 					sendJoin(participants.get(pubKeyHash).peerNode, joinedPublicKeyHash, name);
 				}
 			}
@@ -159,6 +159,13 @@ public class ChatRoom {
 			return false;
 		}
 		boolean directlyConnected = peerNodes.containsKey(publicKeyHash);
+		//TODO: If this participant was invited by someone else but is directly connected, connect to them directly.
+		//TODO: If they're directly connected, any messages would be echoed to them, which would cause
+		//TODO: duplicates on their end as whoever invited them would also route those messages.
+		//TODO: Should directlyConnected and locallyInvited be replaced with (routeFor and) routeTo?
+		/*if (directlyConnected) {
+			peerNode = peerNodes.get(publicKeyHash);
+		}*/
 		Participant newPart = new Participant(name, publicKeyHash, peerNode, directlyConnected, invitedLocally);
 		participants.put(publicKeyHash, newPart);
 		HTMLNode line = log.addChild("li");
@@ -220,10 +227,10 @@ public class ChatRoom {
 				line.addChild("div", "style", participant.nameStyle+"display:inline;", participant.name);
 				line.addChild("#", ' '+l10n("lostConnection"));
 				participants.remove(pubKeyHash);
-			//Send this disconnect to all participants this node invited, provided it didn't deliver this.
+			//Send this disconnect to all participants this node is connected to, provided it didn't deliver this.
 			//pubKeyHash will be equal to the peerNode.getPubKeyHash() because it's locally invited
 			//and thus directly connected.
-			} else if (participant.locallyInvited && !senderPubKeyHash.equals(pubKeyHash)) {
+			} else if (participant.directlyConnected && !senderPubKeyHash.equals(pubKeyHash)) {
 				sendLeave(participant.peerNode, removePubKeyHash);
 			}
 		}
@@ -374,22 +381,25 @@ public class ChatRoom {
 		        l10n("composed", "time", N2NChatPlugin.composedFormat.format(timeComposed.getTime())),
 		        "[ "+ N2NChatPlugin.receivedFormat.format(now.getTime())+" ] ");
 
-		Participant user = participants.get(composedBy);
+		Participant composer = participants.get(composedBy);
 		//Ex: BillyBob:
 		//With text color based on public key hash.
-		messageLine.addChild("div", "style", user.nameStyle+"display:inline;", user.name+": ");
+		messageLine.addChild("div", "style", composer.nameStyle+"display:inline;", composer.name+": ");
 
 		//Ex: Blah blah blah.
 		messageLine.addChild("#", message);
 
 		lastMessageReceived = now;
 
-		//If this node routes this user's messages, send it to all other directly connected participants.
-		if (user.locallyInvited) {
-			for (Participant participant : participants.values()) {
-				if (participant.directlyConnected && participant != user) {
-					sendMessage(participant.peerNode, timeComposed, message, composedBy);
-				}
+		Participant sender = participants.get(deliveredBy);
+
+		//TODO: How to avoid duplicate sending? Currently more than one node can't be directly connected
+		//TODO: to any one participant, so for now it should be okay. When there's more interconnected routing,
+		//TODO: should there be some kind of message/join/leave identifier so that duplicates can be dropped?
+		//TODO: TCP sequence identifiers might be good to look into.
+		for (Participant participant : participants.values()) {
+			if (participant.directlyConnected && participant != sender) {
+				sendMessage(participant.peerNode, timeComposed, message, composedBy);
 			}
 		}
 
@@ -415,7 +425,7 @@ public class ChatRoom {
 			if (entry instanceof Participant) {
 				//It's a participant, list connection information on tooltip.
 				Participant participant = (Participant)entry;
-				if (participant.directlyConnected) {
+				if (participant.pubKeyHash.equals(new ByteArray(participant.peerNode.getPubKeyHash()))) {
 					routing = l10n("connectedDirectly",
 					        new String[] { "nodeName", "nodeID" },
 					        new String[] { participant.peerNode.getName(),
@@ -530,7 +540,7 @@ public class ChatRoom {
 		} catch (UnsupportedEncodingException e) {
 			throw new Error("This JVM does not support UTF-8! Cannot encode join.");
 		}
-		Logger.minor(this, "Sent join of "+username+" in room "+globalIdentifier+" to "+darkPeer.getName());
+		Logger.minor(this, "Sent join of " + username + " in room " + globalIdentifier + " to " + darkPeer.getName());
 		sendBase(darkPeer, fs, N2NChatPlugin.JOIN);
 	}
 
@@ -607,7 +617,7 @@ public class ChatRoom {
 	}
 
 	public boolean receiveInviteReject(DarknetPeerNode darkPeer) {
-		Logger.minor(this, darkPeer.getName()+" rejected an invite to room "+globalIdentifier);
+		Logger.minor(this, darkPeer.getName() + " rejected an invite to room " + globalIdentifier);
 		return receiveInvite(darkPeer, false);
 	}
 

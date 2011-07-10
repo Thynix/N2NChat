@@ -104,12 +104,13 @@ public class MainPageToadlet extends Toadlet implements LinkEnabledCallback {
 				return;
 			}
 			N2NChatPlugin.chatInvite invite = receivedInvites.get(globalIdentifier);
-			//Send invite acceptance.
-			N2NChatPlugin.sendInviteAccept(invite.darkPeer, globalIdentifier);
+			//Create the room.
 			ChatRoom chatRoom = new ChatRoom(invite.roomName, globalIdentifier, invite.username,
 			        pluginRespirator.getNode().getDarknetConnections(), l10n, invite.darkPeer);
 			//Add the room to the list of rooms.
 			chatRooms.put(globalIdentifier, chatRoom);
+			//Send invite acceptance.
+			N2NChatPlugin.sendInviteAccept(invite.darkPeer, globalIdentifier);
 			//Invite is accepted and so no longer pending.
 			receivedInvites.remove(globalIdentifier);
 		} else if (request.isParameterSet("reject")) {
