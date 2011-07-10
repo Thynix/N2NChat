@@ -39,12 +39,14 @@ and the participants list how they are connected to the current node, as well as
 ChatRoom objects handle:
 
 Received:
+
 - Joins
 - Leaves
 - Text messages
 - Invitation acceptance and rejection
 
 Sending:
+
 - Joins
 - Leaves
 - Text messages
