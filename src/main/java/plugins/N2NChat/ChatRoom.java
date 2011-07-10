@@ -17,7 +17,7 @@ import java.util.*;
  */
 public class ChatRoom {
 
-	private Calendar lastMessageReceived;
+	private Calendar lastLineTime;
 	/**
 	 * All participants present in this room except for the local node.
 	 * The key is the public key hash, the value is the Participant object.
@@ -58,13 +58,13 @@ public class ChatRoom {
 		updatePeerNodes(peerNodes);
 		participants = new HashMap<ByteArray, Participant>();
 		sentInvites = new HashMap<ByteArray, NameEntry>();
-		lastMessageReceived = Calendar.getInstance();
-		lastMessageReceived.setTime(new Date());
+		lastLineTime = Calendar.getInstance();
+		lastLineTime.setTime(new Date());
 		//TODO: What size should this box be? Will the automatic size be reasonable?
 		//TODO: Likely full width with limited height.
 		log = new HTMLNode("ul", "style", "overflow:scroll;background-color:white;height:100%;list-style-type:none;");
 		//Start out the chat by setting the day.
-		log.addChild("li", N2NChatPlugin.dayChangeFormat.format(lastMessageReceived.getTime()));
+		log.addChild("li", N2NChatPlugin.dayChangeFormat.format(lastLineTime.getTime()));
 		updateParticipantListing();
 	}
 
@@ -177,9 +177,9 @@ public class ChatRoom {
 		updateParticipantListing();
 		
 		if (displayJoin) {
-			HTMLNode line = log.addChild("li");
-			line.addChild("div", "style", newPart.nameStyle+"display:inline;", name);
-			line.addChild("#", ' '+l10n("joined"));
+			Calendar now = Calendar.getInstance();
+			now.setTime(new Date());
+			addLine(newPart, now, null, " " + l10n("joined"));
 		}
 		return true;
 	}
@@ -211,36 +211,30 @@ public class ChatRoom {
 			return false;
 		}
 
+		Calendar now = Calendar.getInstance();
+		now.setTime(new Date());
+
 		//The identity to remove and the sender of the request are in the chat room, and the sender of the
 		//request is authorized to remove the identity.
 		Participant removedParticipant = participants.get(removePubKeyHash);
 		if (connectionProblem) {
-			HTMLNode line = log.addChild("li");
-			line.addChild("div", "style", removedParticipant.nameStyle+"display:inline;", removedParticipant.name+' ');
-			line.addChild("#", ' '+l10n("lostConnection"));
+			addLine(removedParticipant, now, null, " "+l10n("lostConnection"));
 		} else {
-			HTMLNode line = log.addChild("li");
-			line.addChild("div", "style", removedParticipant.nameStyle+"display:inline;", removedParticipant.name+' ');
-			line.addChild("#", ' '+l10n("left"));
+			addLine(removedParticipant, now, null, " "+l10n("left"));
 		}
 		Logger.minor(this, "Received leave for "+removedParticipant.name+" from "+participants.get(senderPubKeyHash).name+" in room '"+roomName+"' ("+globalIdentifier+"). ConnectionProblem="+connectionProblem);
 		participants.remove(removePubKeyHash);
 
-		Set<ByteArray> keySet = participants.keySet();
-		for (ByteArray pubKeyHash : keySet) {
-			Participant participant = participants.get(pubKeyHash);
+		Collection<Participant> participantCollection = participants.values();
+		for (Participant participant : participantCollection) {
 			//Remove from the room any other participants the leaving node routed for.
 			if (removePubKeyHash.equals(new ByteArray(participant.peerNode.getPubKeyHash()))) {
-				//TODO: This assumes from a localization standpoint that the name comes before the
-				//TODO: phrase. How to add HTML tags that aren't sanitized away in a localized string?
-				HTMLNode line = log.addChild("li");
-				line.addChild("div", "style", participant.nameStyle+"display:inline;", participant.name);
-				line.addChild("#", ' '+l10n("lostConnection"));
-				participants.remove(pubKeyHash);
+				addLine(participant, now, null, " "+l10n("lostConnection"));
+				participants.remove(participant.pubKeyHash);
 			//Send this disconnect to all participants this node is connected to, provided it didn't deliver this.
 			//pubKeyHash will be equal to the peerNode.getPubKeyHash() because it's locally invited
 			//and thus directly connected.
-			} else if (participant.directlyConnected && !senderPubKeyHash.equals(pubKeyHash)) {
+			} else if (participant.directlyConnected && !senderPubKeyHash.equals(participant.pubKeyHash)) {
 				sendLeave(participant.peerNode, removePubKeyHash);
 			}
 		}
@@ -381,29 +375,15 @@ public class ChatRoom {
 			return false;
 		}
 
-		Calendar now = Calendar.getInstance();
-		now.setTime(new Date());
-		addDateOnDayChange(now);
-
-		//Ex: [ 04:38:30 PM ]
-		//Ex: Tooltip of time composed.
-		HTMLNode messageLine = log.addChild("li", "title",
-		        l10n("composed", "time", N2NChatPlugin.composedFormat.format(timeComposed.getTime())),
-		        "[ "+ N2NChatPlugin.receivedFormat.format(now.getTime())+" ] ");
-
 		Participant composer = participants.get(composedBy);
-		//Ex: BillyBob:
-		//With text color based on public key hash.
-		messageLine.addChild("div", "style", composer.nameStyle+"display:inline;", composer.name+": ");
-
-		//Ex: Blah blah blah.
-		messageLine.addChild("#", message);
-
-		lastMessageReceived = now;
-
 		Participant sender = participants.get(deliveredBy);
 
 		Logger.minor(this, "Received chat message composed by "+composer.name+" delivered by "+sender.name+" in room '"+roomName+"' ("+globalIdentifier+")");
+
+		Calendar now = Calendar.getInstance();
+		now.setTime(new Date());
+		String tooltip=l10n("composed", "time", N2NChatPlugin.composedFormat.format(timeComposed.getTime()));
+		addLine(composer, now, tooltip, ": "+message);
 
 		//TODO: How to avoid duplicate sending? Currently more than one node can't be directly connected
 		//TODO: to any one participant, so for now it should be okay. When there's more interconnected routing,
@@ -431,7 +411,6 @@ public class ChatRoom {
 
 		//List participants with colored name text and routing information on tooltip.
 		for (NameEntry entry : names) {
-			//TODO: How do browsers behave given an empty title?
 			String routing = "";
 			String suffix = "";
 			if (entry instanceof Participant) {
@@ -466,13 +445,8 @@ public class ChatRoom {
 	public void sendOwnMessage(String message) {
 		Calendar now = Calendar.getInstance();
 		now.setTime(new Date());
-		addDateOnDayChange(now);
 
-		//[ 04:38:20 PM ] Username: Blah blah blah.
-		HTMLNode line = log.addChild("li", "[ "+ N2NChatPlugin.receivedFormat.format(now.getTime())+" ] ");
-		line.addChild("div", "style", username.nameStyle+"display:inline;", username.name+": ");
-		line.addChild("#", message);
-		lastMessageReceived = now;
+		addLine(username, now, null, ": " + message);
 
 		//Send this message to others.
 		for (Participant participant : participants.values()) {
@@ -483,12 +457,38 @@ public class ChatRoom {
 	}
 
 	/**
+	 * Adds a line to the message log of format [ Time ] (with optional timestamp tooltip) name[message]. If there
+	 * is a day change, this will add it. Updates the lastLineTime. Used for joins, leaves, and messages.
+	 * @param name Name to display.
+	 * @param time Timestamp to display.
+	 * @param timestampTooltip Tooltip to display, if any. Can be null.
+	 * @param message What to append to the name in non-colored text.
+	 */
+	private void addLine(NameEntry name, Calendar time, String timestampTooltip, String message) {
+		addDateOnDayChange(time);
+		lastLineTime = time;
+
+		HTMLNode messageLine = log.addChild("li", "[ "+ N2NChatPlugin.receivedFormat.format(time.getTime())+" ] ");
+
+		if (timestampTooltip != null) {
+			messageLine.addAttribute("title", timestampTooltip);
+		}
+
+		//Ex: BillyBob
+		//With text color based on public key hash.
+		messageLine.addChild("div", "style", name.nameStyle+"display:inline;", name.name);
+
+		//Ex: ": Blah blah blah." or " disconnected."
+		messageLine.addChild("#", message);
+	}
+
+	/**
 	 * List the current date if the day changed.
 	 * @param now What date to regard as the current one.
 	 */
 	private void addDateOnDayChange(Calendar now) {
-		if (now.get(Calendar.DAY_OF_YEAR) != lastMessageReceived.get(Calendar.DAY_OF_YEAR) ||
-		        now.get(Calendar.YEAR) != lastMessageReceived.get(Calendar.YEAR)) {
+		if (now.get(Calendar.DAY_OF_YEAR) != lastLineTime.get(Calendar.DAY_OF_YEAR) ||
+		        now.get(Calendar.YEAR) != lastLineTime.get(Calendar.YEAR)) {
 			log.addChild("li", N2NChatPlugin.dayChangeFormat.format(now.getTime()));
 		}
 	}
