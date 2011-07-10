@@ -97,24 +97,24 @@ public class ChatRoom {
 	/**
 	 * Adds a directly connected participant that was invited locally.
 	 * This node will route messages to and from them.
-	 * @param darknetParticipant The peer that was invited.
+	 * @param newParticipantPeer The peer that was invited.
 	 * @param username The name of this user as referred to within this chat.
 	 * @return True if the participant was added, false if not.
 	 */
-	public boolean inviteParticipant(DarknetPeerNode darknetParticipant, String username) {
+	public boolean inviteParticipant(DarknetPeerNode newParticipantPeer, String username) {
 		//Check if the participant is already participating.
-		if (addParticipant(new ByteArray(darknetParticipant.getPubKeyHash()), darknetParticipant.getName(), darknetParticipant,
-		        true)) {
+		if (addParticipant(new ByteArray(newParticipantPeer.getPubKeyHash()), newParticipantPeer.getName(),
+		        newParticipantPeer, true, true)) {
 			//They aren't; this is a fresh join.
+			Participant newParticipant = participants.get(new ByteArray(newParticipantPeer.getPubKeyHash()));
 			for (ByteArray pubKeyHash : participants.keySet()) {
-				if (!pubKeyHash.equals(new ByteArray(darknetParticipant.getPubKeyHash())) &&
-				        participants.get(pubKeyHash).directlyConnected) {
+				Participant existingParticipant = participants.get(pubKeyHash);
+				if (!pubKeyHash.equals(new ByteArray(newParticipantPeer.getPubKeyHash())) &&
+				        existingParticipant.directlyConnected) {
 					//Send all other participants a join for the new participant.
-					sendJoin(participants.get(pubKeyHash).peerNode,
-					        new ByteArray(darknetParticipant.getPubKeyHash()),
-					        username);
-					//Send the new participant joins for all other participants.
-					sendJoin(darknetParticipant, pubKeyHash, participants.get(pubKeyHash).name);
+					sendJoin(existingParticipant.peerNode, newParticipant, true);
+					//Send the new participant silent joins for all other participants.
+					sendJoin(newParticipantPeer, existingParticipant, false);
 				}
 			}
 			return true;
@@ -128,15 +128,18 @@ public class ChatRoom {
 	 * @param name The name of the new participant.
 	 * @param routedBy The peer that routed the invite. This peer will be authorized to route all other things
 	 * with regards to this participant.
+	 * @param displayJoin Whether the join should display a message.
 	 * @return True if the participant was added, false otherwise.
 	 */
-	public boolean joinedParticipant(ByteArray joinedPublicKeyHash, String name, DarknetPeerNode routedBy) {
+	public boolean joinedParticipant(ByteArray joinedPublicKeyHash, String name, DarknetPeerNode routedBy, boolean displayJoin) {
 		/*TODO: Query directly connected participants for backup routing paths.*/
-		if (addParticipant(joinedPublicKeyHash, name, routedBy, false)) {
+		if (addParticipant(joinedPublicKeyHash, name, routedBy, false, displayJoin)) {
+			Participant newParticipant = participants.get(joinedPublicKeyHash);
+			Logger.minor(this, "Received join for "+newParticipant.name+" from "+routedBy.getName()+" in room '"+roomName+"' ("+globalIdentifier+") displayJoin="+displayJoin);
 			for (ByteArray pubKeyHash : participants.keySet()) {
 				//Route this join to all directly connected participants,
 				if (participants.get(pubKeyHash).directlyConnected && !pubKeyHash.equals(new ByteArray(routedBy.getPubKeyHash()))) {
-					sendJoin(participants.get(pubKeyHash).peerNode, joinedPublicKeyHash, name);
+					sendJoin(participants.get(pubKeyHash).peerNode, newParticipant, true);
 				}
 			}
 			return true;
@@ -145,20 +148,23 @@ public class ChatRoom {
 	}
 
 	/**
-	 * Adds a participant to this chatroom so that messages they send here can be received.
+	 * Adds a participant to this chat room so that messages they send here can be received.
 	 * @param publicKeyHash Public key hash of the participant to add.
 	 * @param name Name of the participant to add.
 	 * @param peerNode If directly connected, the DarknetPeerNode to invite. If not, the DarknetPeerNode who invited
 	 * this participant and is authorized to route their messages.
 	 * @param invitedLocally True if invited by the local node, false if invited by someone else.
+	 * @param displayJoin Whether the join should be displayed in the messages panel. For example, if a newly invited
+	 * participant is receiving a join about an existing participant, it probably shouldn't display a join.
 	 * @return True if participant was added, false otherwise.
 	 */
-	private boolean addParticipant(ByteArray publicKeyHash, String name, DarknetPeerNode peerNode, boolean invitedLocally) {
+	private boolean addParticipant(ByteArray publicKeyHash, String name, DarknetPeerNode peerNode,
+		       boolean invitedLocally, boolean displayJoin) {
 		//A participant cannot be in a chat room multiple times at once.
 		if (participants.containsKey(publicKeyHash)) {
 			return false;
 		}
-		boolean directlyConnected = peerNodes.containsKey(publicKeyHash);
+		boolean directlyConnected = publicKeyHash.equals(new ByteArray(peerNode.getPubKeyHash()));
 		//TODO: If this participant was invited by someone else but is directly connected, connect to them directly.
 		//TODO: If they're directly connected, any messages would be echoed to them, which would cause
 		//TODO: duplicates on their end as whoever invited them would also route those messages.
@@ -168,10 +174,13 @@ public class ChatRoom {
 		}*/
 		Participant newPart = new Participant(name, publicKeyHash, peerNode, directlyConnected, invitedLocally);
 		participants.put(publicKeyHash, newPart);
-		HTMLNode line = log.addChild("li");
-		line.addChild("div", "style", newPart.nameStyle+"display:inline;", name);
-		line.addChild("#", ' '+l10n("joined"));
 		updateParticipantListing();
+		
+		if (displayJoin) {
+			HTMLNode line = log.addChild("li");
+			line.addChild("div", "style", newPart.nameStyle+"display:inline;", name);
+			line.addChild("#", ' '+l10n("joined"));
+		}
 		return true;
 	}
 
@@ -214,6 +223,7 @@ public class ChatRoom {
 			line.addChild("div", "style", removedParticipant.nameStyle+"display:inline;", removedParticipant.name+' ');
 			line.addChild("#", ' '+l10n("left"));
 		}
+		Logger.minor(this, "Received leave for "+removedParticipant.name+" from "+participants.get(senderPubKeyHash).name+" in room '"+roomName+"' ("+globalIdentifier+"). ConnectionProblem="+connectionProblem);
 		participants.remove(removePubKeyHash);
 
 		Set<ByteArray> keySet = participants.keySet();
@@ -393,6 +403,8 @@ public class ChatRoom {
 
 		Participant sender = participants.get(deliveredBy);
 
+		Logger.minor(this, "Received chat message composed by "+composer.name+" delivered by "+sender.name+" in room '"+roomName+"' ("+globalIdentifier+")");
+
 		//TODO: How to avoid duplicate sending? Currently more than one node can't be directly connected
 		//TODO: to any one participant, so for now it should be okay. When there's more interconnected routing,
 		//TODO: should there be some kind of message/join/leave identifier so that duplicates can be dropped?
@@ -520,8 +532,8 @@ public class ChatRoom {
 		}
 
 		formatPubKeyHash(composedBy, fs);
-		Logger.minor(this, "Sent message composed " + (composedBy == null ? "locally" : "by " + Base64.encode(
-		        composedBy.getBytes())) + " in room " + globalIdentifier + " to " + darkPeer.getName());
+		Logger.minor(this, "Sent message composed " + (composedBy == null ? "locally" : "by " +
+		         participants.get(composedBy).name) + " in room '"+roomName+"' (" + globalIdentifier + ") to " + darkPeer.getName());
 		sendBase(darkPeer, fs, N2NChatPlugin.MESSAGE);
 	}
 
@@ -529,19 +541,20 @@ public class ChatRoom {
 	 * Sends the specified darknet peer a notification that a participant with the given public key hash has joined.
 	 * This means that unless that peer is directly connected to a node with this public key hash, it will accept
 	 * messages from that participant through this node.
-	 * @param darkPeer The darknet peer to send the notification to.
-	 * @param pubKeyHash The public key hash of the participant that has joined.
-	 * @param username The username of the newly joined participant.
+	 * @param sendTo The darknet peer to send the notification to.
+	 * @param newParticipant The new participant.
+	 * @param displayJoin Whether the join should generate a message.
 	 */
-	private void sendJoin(DarknetPeerNode darkPeer, ByteArray pubKeyHash, String username) {
-		SimpleFieldSet fs = formatPubKeyHash(pubKeyHash);
+	private void sendJoin(DarknetPeerNode sendTo, Participant newParticipant, boolean displayJoin) {
+		SimpleFieldSet fs = formatPubKeyHash(newParticipant.pubKeyHash);
 		try {
-			fs.putSingle("username", Base64.encode(username.getBytes("UTF-8")));
+			fs.putSingle("username", Base64.encode(newParticipant.name.getBytes("UTF-8")));
+			fs.put("displayJoin", displayJoin);
 		} catch (UnsupportedEncodingException e) {
 			throw new Error("This JVM does not support UTF-8! Cannot encode join.");
 		}
-		Logger.minor(this, "Sent join of " + username + " in room " + globalIdentifier + " to " + darkPeer.getName());
-		sendBase(darkPeer, fs, N2NChatPlugin.JOIN);
+		Logger.minor(this, "Sent join of " + newParticipant.name + " in room '"+roomName+"' (" + globalIdentifier + ") to " + sendTo.getName());
+		sendBase(sendTo, fs, N2NChatPlugin.JOIN);
 	}
 
 	/**
@@ -597,13 +610,19 @@ public class ChatRoom {
 		return false;
 	}
 
-	private boolean receiveInvite(DarknetPeerNode darkPeer, boolean inviteParticipant) {
+	/**
+	 * Handles invitation responses.
+	 * @param darkPeer The peer that sent the accept/reject.
+	 * @param accepted Whether the invite was accepted.
+	 * @return True if the invite was removed, false if the invite does not exist.
+	 */
+	private boolean receiveInvite(DarknetPeerNode darkPeer, boolean accepted) {
 		ByteArray darkPeerHash = new ByteArray(darkPeer.getPubKeyHash());
 		if (!sentInvites.containsKey(darkPeerHash)) {
 			Logger.warning(this, "Received message from "+darkPeer.getName()+" about nonexistent invite to room "+globalIdentifier);
 			return false;
 		}
-		if (inviteParticipant) {
+		if (accepted) {
 			inviteParticipant(darkPeer, sentInvites.get(darkPeerHash).name);
 		}
 		sentInvites.remove(darkPeerHash);
@@ -612,12 +631,12 @@ public class ChatRoom {
 	}
 
 	public boolean receiveInviteAccept(DarknetPeerNode darkPeer) {
-		Logger.minor(this, darkPeer.getName()+" accepted an invite to room "+globalIdentifier);
+		Logger.minor(this, darkPeer.getName()+" accepted an invite to room '"+roomName+"' ("+globalIdentifier+")");
 		return receiveInvite(darkPeer, true);
 	}
 
 	public boolean receiveInviteReject(DarknetPeerNode darkPeer) {
-		Logger.minor(this, darkPeer.getName() + " rejected an invite to room " + globalIdentifier);
+		Logger.minor(this, darkPeer.getName()+" rejected an invite to room '"+roomName+"' ("+globalIdentifier+")");
 		return receiveInvite(darkPeer, false);
 	}
 

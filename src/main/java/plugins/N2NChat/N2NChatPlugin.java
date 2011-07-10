@@ -292,7 +292,7 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 				return;
 			}
 			DarknetPeerNode darkSource = (DarknetPeerNode) source;
-			freenet.support.Logger.normal(this, "Received N2N chat from '" + darkSource.getPeer() + "'");
+			freenet.support.Logger.normal(this, "Received N2N chat from " +darkSource.getName()+" (" + darkSource.getPeer() + ")");
 			SimpleFieldSet fs = null;
 			try {
 				fs = new SimpleFieldSet(new String(data, "UTF-8"), false, true);
@@ -313,7 +313,7 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 				globalIdentifier = fs.getLong("globalIdentifier");
 			} catch (FSParseException e) {
 				//Could not parse global identifier. Dropping.
-				//TODO: Add localized, logged error message.
+				//TODO: Add localized error message.
 				Logger.error(this, "Failed to parse global identifier from " + ((DarknetPeerNode) source).getName() + '.');
 				return;
 			}
@@ -323,6 +323,7 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 				type = fs.getInt("type");
 			} catch (FSParseException e) {
 				Logger.error(this, "Failed to read message type in message about room "+globalIdentifier);
+				return;
 			}
 
 			/*/A darknet peer offered this node an invite. Add it to the list of offered invites to allow
@@ -333,7 +334,9 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 					String username = new String(Base64.decode(fs.get("username")));
 					String roomName = new String(Base64.decode(fs.get("roomName")));
 					receivedInvites.put(globalIdentifier, new chatInvite(username, roomName,
-					       darkSource));
+					        darkSource));
+					Logger.minor(this, "Received invitation offer from "+darkSource.getName()+
+					        " to room '"+roomName+"' ("+globalIdentifier+") with username '"+username+"'");
 				} catch (IllegalBase64Exception e) {
 					Logger.error(this, "Invalid base64 encoding on user/room name", e);
 				}
@@ -341,6 +344,8 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 			} else if (type == RETRACT_INVITE) {
 				if (receivedInvites.containsKey(globalIdentifier) &&
 				        receivedInvites.get(globalIdentifier).darkPeer == darkSource) {
+					Logger.minor(this, "Received invite retract from"+darkSource.getName()+
+					        " for the invite to room '"+receivedInvites.get(globalIdentifier).roomName+" ("+globalIdentifier+")");
 					receivedInvites.remove(darkSource.getPubKeyHash());
 				}
 				return;
@@ -358,12 +363,11 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 
 			//A darknet peer accepted an invite this node offered. Add them to the chat room.
 			if (type == ACCEPT_INVITE) {
-				Logger.minor(this, "Received invite accept for room " + globalIdentifier + " from " + darkSource.getName());
+				Logger.minor(this, "Received invite accept for room '"+chatRooms.get(globalIdentifier).getRoomName()+"' (" + globalIdentifier + ") from " + darkSource.getName());
 				chatRooms.get(globalIdentifier).receiveInviteAccept(darkSource);
 				return;
 			//A darknet peer rejected an invite this node offered; remove it from list of pending invites.
 			} else if (type == REJECT_INVITE) {
-				Logger.minor(this, "Received invite reject for room "+globalIdentifier+" from "+darkSource.getName());
 				chatRooms.get(globalIdentifier).receiveInviteReject(darkSource);
 				return;
 			}
@@ -401,8 +405,14 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 			//Someone joined a chat room.
 			} else if (type == JOIN) {
 				try {
+					boolean displayJoin = true;
+					try {
+						displayJoin = fs.getBoolean("displayJoin");
+					} catch (FSParseException e) {
+						Logger.error(this, "Join message did not include whether to display. Defaulting to display.", e);
+					}
 					chatRooms.get(globalIdentifier).joinedParticipant(pubKeyHash,
- 					        new String(Base64.decode(fs.get("username"))), darkSource);
+ 					        new String(Base64.decode(fs.get("username"))), darkSource, displayJoin);
 				} catch (IllegalBase64Exception e) {
 					Logger.error(this, "Invalid base64 encoding on username", e);
 				}
@@ -411,7 +421,9 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 			} else if (type == LEAVE) {
 				chatRooms.get(globalIdentifier).removeParticipant(pubKeyHash,
 				        new ByteArray(darkSource.getPubKeyHash()), false);
+				return;
 			}
+			Logger.warning(this, "Received chat message of unknown type "+type+" from "+darkSource.getName());
 		}
 	};
 }
