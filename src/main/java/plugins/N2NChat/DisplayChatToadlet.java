@@ -91,6 +91,7 @@ public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 				return;
 			}
 		}
+		super.sendErrorPage(ctx, 500, "Argument error", "Not enough recognized arguments were provided to do anything.");
 	}
 
 	private void selfRefresh(long globalIdentifier, ToadletContext ctx) throws ToadletContextClosedException, IOException{
@@ -116,27 +117,44 @@ public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 				super.sendErrorPage(ctx, 500, "Invalid Room", "This node is not present in the specified room.");
 			}
 			ChatRoom chatRoom = chatRooms.get(globalIdentifier);
-			assert(chatRoom != null);
+
+			//Only messages have been requested.
+			if (request.isParameterSet("messagesPane")) {
+				writeHTMLReply(ctx, 200, "OK", null, chatRoom.getLog().generate());
+				return;
+			} else if (request.isParameterSet("participantsList")) {
+				writeHTMLReply(ctx, 200, "OK", null, chatRoom.getParticipantListing().generate());
+				return;
+			}
 			PageNode pn = ctx.getPageMaker().getPageNode(chatRoom.getRoomName(), ctx);
-			pn.addCustomStyleSheet("/n2n-chat/css/n2nchat.css");
+			//pn.addCustomStyleSheet("/n2n-chat/static/css/display.css");
+			pn.headNode.addChild("script",
+			        new String[] { "type", "src" },
+			        new String[] { "text/javascript", "/n2n-chat/static/js/jquery.min.js"});
+			pn.headNode.addChild("script",
+			        new String[] { "type", "src" },
+			        new String[] { "text/javascript", "/n2n-chat/static/js/display.js"});
 
 			//So that the members and messages pane share vertical size.
 			HTMLNode panes = pn.content.addChild("div", "style", "display:table;width:100%");
 
 			//Add main messages area.
-			//pn.content.addChild(new HTMLNode("div", "class", "messagePane").addChild(chatRoom.getLog()));
-			panes.addChild("div", "style", "display:table-cell;width:80%;").addChild(chatRoom.getLog());
+			panes.addChild("div", new String[] { "style", "id" },
+			        new String[] { "display:table-cell;width:80%;", "messagesPane" })
+			        .addChild(chatRoom.getLog());
 
 			//Add listing of current participants.
-			//HTMLNode participantPane = pn.content.addChild("div", "class", "participantPane");
-			HTMLNode participantPane = panes.addChild("div", "style", "display:table-cell;width:20%");
-			participantPane.addChild(chatRoom.getParticipantListing());
+			HTMLNode participantsPane = panes.addChild("div", "style", "display:table-cell;width:20%");
+			//Container for participants listing only; invite dropdown should not be disturbed by the auto-refresh.
+			HTMLNode participantsListing = participantsPane.addChild("div", "id", "participantsList");
+			participantsListing.addChild(chatRoom.getParticipantListing());
+
 			//And ability to invite those not already participating. Don't display if all connected darknet
 			//peers are already participating.
 			ArrayList<DarknetPeerNode> uninvitedPeers = uninvitedPeers(globalIdentifier);
 			if (uninvitedPeers.size() > 0) {
 				//Allow inviting more participants.
-				HTMLNode inviteForm = ctx.addFormChild(participantPane, path(), "invite-participant");
+				HTMLNode inviteForm = ctx.addFormChild(participantsPane, path(), "invite-participant");
 				inviteForm.addChild("input", new String[] { "type", "name", "value" },
 				        new String[] { "hidden", "room", String.valueOf(globalIdentifier) });
 				HTMLNode dropDown = inviteForm.addChild("select", "name", "invite");
@@ -151,10 +169,10 @@ public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 
 			//Add message sending area.
 			HTMLNode messageEntry = ctx.addFormChild(pn.content, path(), "send-message");
-			messageEntry.addChild("textarea", new String[] { "id", "name", "rows", "cols" },
-			        new String[] { "n2n-chat-text", "message", "5", "80" });
+			messageEntry.addChild("input", new String[] { "type", "name", "style" },
+			        new String[] { "text", "message", "width:80%;" });
 			messageEntry.addChild("input", new String[] { "type", "name", "value" },
-			        new String[] { "hidden", "room",  String.valueOf(globalIdentifier)} );
+			        new String[] { "hidden", "room", String.valueOf(globalIdentifier)} );
 			messageEntry.addChild("input", new String[] { "type", "name", "value"},
 			        new String[] { "submit", "send-message", l10n("send") } );
 			writeHTMLReply(ctx, 200, "OK", null, pn.outer.generate());

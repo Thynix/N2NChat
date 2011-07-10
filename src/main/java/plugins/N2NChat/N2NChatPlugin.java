@@ -113,7 +113,7 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 
 	private MainPageToadlet mpt;
 	private DisplayChatToadlet displayChatToadlet;
-	private CSSGet cssGet;
+	private StaticResourceToadlet srt;
 
 	//
 	// ACCESSORS
@@ -158,9 +158,9 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 		pr.getToadletContainer().register(mpt, null, mpt.path(), true, false);
 
 		displayChatToadlet = new DisplayChatToadlet(this);
-		cssGet = new CSSGet(pr);
+		srt = new StaticResourceToadlet(pr);
 		pr.getToadletContainer().register(displayChatToadlet, null, displayChatToadlet.path(), true, false);
-		pr.getToadletContainer().register(cssGet, null, cssGet.path(), true, false);
+		pr.getToadletContainer().register(srt, null, srt.path(), true, false);
 		pr.getNode().registerNodeToNodeMessageListener(N2N_MESSAGE_TYPE_CHAT, N2NChatListener);
 	}
 
@@ -180,7 +180,7 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 		//Unregister pages
 		pluginRespirator.getToadletContainer().unregister(mpt);
 		pluginRespirator.getToadletContainer().unregister(displayChatToadlet);
-		pluginRespirator.getToadletContainer().unregister(cssGet);
+		pluginRespirator.getToadletContainer().unregister(srt);
 	}
 
 	//
@@ -254,39 +254,6 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 	//
 	// CHAT-SPECIFIC METHODS
 	//
-
-	/**
-	 * Returns the CSS stylesheet. Based off of Bombe's CSSWebInterfaceToadlet.
-	 */
-	public class CSSGet extends Toadlet {
-
-		@Override
-		public String path() {
-			return "/n2n-chat/css/n2nchat.css";
-		}
-
-		public CSSGet(PluginRespirator pr) {
-			super(pr.getHLSimpleClient());
-		}
-
-		public void handleMethodGET(URI uri, HTTPRequest request, ToadletContext ctx) throws ToadletContextClosedException, IOException, RedirectException {
-			URLConnection inputURL = getClass().getResource("/css/n2nchat.css").openConnection();
-			InputStream inputStream = null;
-			byte[] output = new byte[0];
-			try {
-				inputURL.setUseCaches(false);
-				inputStream = inputURL.getInputStream();
-				if (inputStream != null) {
-					ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-					ContentFilter.filter(inputStream, outputStream, "text/css", uri, null, null, null);
-					output = outputStream.toByteArray();
-				}
-				writeReply(ctx, 200, "text/css", "OK", output, 0, output.length);
-			} finally {
-				Closer.close(inputStream);
-			}
-		}
-	}
 
 	public static void sendInvite(long globalIdentifier, DarknetPeerNode darkPeer, int type) {
 		SimpleFieldSet fs = new SimpleFieldSet(true);
