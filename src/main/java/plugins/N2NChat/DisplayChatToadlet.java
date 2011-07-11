@@ -112,11 +112,12 @@ public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 		if (request.isParameterSet("room") && !request.getParam("room").isEmpty()) {
 			long globalIdentifier = Long.valueOf(request.getParam("room"));
 			//Ensure the chat room is valid.
-			if (chatRooms.get(globalIdentifier) == null) {
+			ChatRoom chatRoom = chatRooms.get(globalIdentifier);
+			if (chatRoom == null) {
 				//TODO: localization
 				super.sendErrorPage(ctx, 500, "Invalid Room", "This node is not present in the specified room.");
+				return;
 			}
-			ChatRoom chatRoom = chatRooms.get(globalIdentifier);
 
 			//Only messages have been requested.
 			if (request.isParameterSet("messagesPane")) {
