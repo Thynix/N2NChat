@@ -128,7 +128,7 @@ public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 				return;
 			}
 			PageNode pn = ctx.getPageMaker().getPageNode(chatRoom.getRoomName(), ctx);
-			//pn.addCustomStyleSheet("/n2n-chat/static/css/display.css");
+			pn.addCustomStyleSheet("/n2n-chat/static/css/display.css");
 			pn.headNode.addChild("script",
 			        new String[] { "type", "src" },
 			        new String[] { "text/javascript", "/n2n-chat/static/js/jquery.min.js"});
@@ -136,26 +136,19 @@ public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 			        new String[] { "type", "src" },
 			        new String[] { "text/javascript", "/n2n-chat/static/js/display.js"});
 
-			//So that the members and messages pane share vertical size.
-			HTMLNode panes = pn.content.addChild("div", "style", "display:table;width:100%");
+			//Add message display.
+			pn.content.addChild("div", "id", "messages-pane").addChild(chatRoom.getLog());
 
-			//Add main messages area.
-			panes.addChild("div", new String[] { "style", "id" },
-			        new String[] { "display:table-cell;width:80%;", "messagesPane" })
-			        .addChild(chatRoom.getLog());
-
-			//Add listing of current participants.
-			HTMLNode participantsPane = panes.addChild("div", "style", "display:table-cell;width:20%");
-			//Container for participants listing only; invite dropdown should not be disturbed by the auto-refresh.
-			HTMLNode participantsListing = participantsPane.addChild("div", "id", "participantsList");
-			participantsListing.addChild(chatRoom.getParticipantListing());
+			//Add list of current participants.
+			pn.content.addChild("div", "id", "participants-list").addChild(chatRoom.getParticipantListing());
 
 			//And ability to invite those not already participating. Don't display if all connected darknet
 			//peers are already participating.
 			ArrayList<DarknetPeerNode> uninvitedPeers = uninvitedPeers(globalIdentifier);
 			if (uninvitedPeers.size() > 0) {
 				//Allow inviting more participants.
-				HTMLNode inviteForm = ctx.addFormChild(participantsPane, path(), "invite-participant");
+				HTMLNode inviteDiv = pn.content.addChild("div", "id", "invite-form");
+				HTMLNode inviteForm = ctx.addFormChild(inviteDiv, path(), "invite-participant");
 				inviteForm.addChild("input", new String[] { "type", "name", "value" },
 				        new String[] { "hidden", "room", String.valueOf(globalIdentifier) });
 				HTMLNode dropDown = inviteForm.addChild("select", "name", "invite");
@@ -169,13 +162,12 @@ public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 			}
 
 			//Add message sending area.
-			HTMLNode messageEntry = ctx.addFormChild(pn.content, path(), "send-message");
+			HTMLNode messageDiv = pn.content.addChild("div", "id", "message-form");
+			HTMLNode messageEntry = ctx.addFormChild(messageDiv, path(), "send-message");
 			messageEntry.addChild("input", new String[] { "type", "name", "style" },
-			        new String[] { "text", "message", "width:80%;" });
+			        new String[] { "text", "message", "width:100%;" });
 			messageEntry.addChild("input", new String[] { "type", "name", "value" },
 			        new String[] { "hidden", "room", String.valueOf(globalIdentifier)} );
-			messageEntry.addChild("input", new String[] { "type", "name", "value"},
-			        new String[] { "submit", "send-message", l10n("send") } );
 			writeHTMLReply(ctx, 200, "OK", null, pn.outer.generate());
 		} else {
 			super.sendErrorPage(ctx, 500, "Room Not Specified", "The room to display was not specified.");

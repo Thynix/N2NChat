@@ -1,0 +1,74 @@
+html {
+    overflow: hidden;
+}
+
+body {
+    overflow: hidden;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+    height: 100%;
+}
+
+/*List used in message log and participant listing*/
+.list-pane {
+	list-style-type:none;
+	padding:20px;
+	margin:0px;
+}
+
+/*Container for message log*/
+#messages-pane {
+    padding: 0;
+    margin: 0;
+    position: absolute;
+    top: 100px;
+    left: 20px;
+    right: 290px;
+    bottom: 100px;
+    overflow: scroll;
+    background-color:white;
+}
+
+/*Text box to send a message*/
+#message-form {
+    padding: 0;
+    margin: 0;
+    position: absolute;
+    height: 50px;
+    right: 290px;
+    left: 20px;
+    bottom: 25px;
+}
+
+/*Container for participant listing*/
+#participants-list {
+    padding: 0;
+    margin: 0;
+    position: absolute;
+    top: 100px;
+    right: 20px;
+    bottom: 100px;
+    width: 250px;
+    overflow: scroll;
+    background-color:white;
+}
+
+/*Form to invite more participants*/
+#invite-form {
+    padding: 0;
+    margin: 0;
+    position: absolute;
+    height: 50px;
+    right: 20px;
+    width: 250px;
+    bottom: 25px;
+}
+
+/*Bar on the bottom*/
+#statusbar-container {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 25px;
+}

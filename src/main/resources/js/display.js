@@ -11,13 +11,13 @@ function refreshPanes() {
 
 function refreshParticipantsList() {
   $.get('/n2n-chat/display/', { 'room' : room, 'participantsList' : 'only' }, function(data) {
-    $('#participantsList').html(data);
+    $('#participants-list').html(data);
   });
 }
 
 function refreshMessagePane() {
   $.get('/n2n-chat/display/', { 'room' : room, 'messagesPane' : 'only' }, function(data) {
-    $('#messagesPane').html(data);
+    $('#messages-pane').html(data);
   });
 }
 

@@ -62,7 +62,7 @@ public class ChatRoom {
 		lastLineTime.setTime(new Date());
 		//TODO: What size should this box be? Will the automatic size be reasonable?
 		//TODO: Likely full width with limited height.
-		log = new HTMLNode("ul", "style", "overflow:scroll;background-color:white;height:100%;list-style-type:none;");
+		log = new HTMLNode("ul", "class", "list-pane");
 		//Start out the chat by setting the day.
 		log.addChild("li", N2NChatPlugin.dayChangeFormat.format(lastLineTime.getTime()));
 		updateParticipantListing();
@@ -405,7 +405,7 @@ public class ChatRoom {
 		names.add(username);
 		Collections.sort(names);
 
-		participantListing = new HTMLNode("ul", "style", "overflow:scroll;background-color:white;list-style-type:none;");
+		participantListing = new HTMLNode("ul", "class", "list-pane");
 		participantListing.addChild("li", l10n("participantsPresent", "numberOf",
 		        String.valueOf(participants.size()+1)));
 
