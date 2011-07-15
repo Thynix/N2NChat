@@ -337,6 +337,7 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 					        darkSource));
 					Logger.minor(this, "Received invitation offer from "+darkSource.getName()+
 					        " to room '"+roomName+"' ("+globalIdentifier+") with username '"+username+"'");
+					mpt.updateInvitationTable();
 				} catch (IllegalBase64Exception e) {
 					Logger.error(this, "Invalid base64 encoding on user/room name", e);
 				}
@@ -347,6 +348,7 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 					Logger.minor(this, "Received invite retract from"+darkSource.getName()+
 					        " for the invite to room '"+receivedInvites.get(globalIdentifier).roomName+" ("+globalIdentifier+")");
 					receivedInvites.remove(darkSource.getPubKeyHash());
+					mpt.updateInvitationTable();
 				}
 				return;
 			}

@@ -28,9 +28,9 @@ public class MainPageToadlet extends Toadlet implements LinkEnabledCallback {
 	private PluginRespirator pluginRespirator;
 	private HashMap<Long, ChatRoom> chatRooms;
 	private HashMap<Long, N2NChatPlugin.chatInvite> receivedInvites;
-	//TODO: Or node l10n?
 	private PluginL10n l10n;
 	public static final int roomNameTruncate = 255;
+    private HTMLNode invitationTable;
 
 	public MainPageToadlet(N2NChatPlugin chatPlugin) {
 		super(chatPlugin.pluginRespirator().getHLSimpleClient());
@@ -124,11 +124,20 @@ public class MainPageToadlet extends Toadlet implements LinkEnabledCallback {
 			N2NChatPlugin.sendInviteReject(receivedInvites.get(globalIdentifier).darkPeer, globalIdentifier);
 			//Invite is rejected and so no longer pending.
 			receivedInvites.remove(globalIdentifier);
+		} else if (request.isParameterSet("invitationTable")) {
+			writeHTMLReply(ctx, 200, "OK", null, invitationTable.generate());
+			return;
 		}
 
 		//List current chat rooms
 		PageNode pn = ctx.getPageMaker().getPageNode(l10n("chatRoomListing"), ctx);
 		pn.addCustomStyleSheet("/n2n-chat/static/css/main-page.css");
+		pn.headNode.addChild("script",
+		        new String[] { "type", "src" },
+		        new String[] { "text/javascript", "/n2n-chat/static/js/jquery.min.js"});
+		pn.headNode.addChild("script",
+		        new String[] { "type", "src" },
+		        new String[] { "text/javascript", "/n2n-chat/static/js/main-page.js"});
 		HTMLNode content = pn.content;
 		HTMLNode roomListing = content.addChild("ul",
 		        new String[] { "class", "style" },
@@ -153,22 +162,8 @@ public class MainPageToadlet extends Toadlet implements LinkEnabledCallback {
 		        new String[] { "submit", "create-chat", l10n("newRoom") });
 
 		//List received invitations.
-		HTMLNode inviteListing = content.addChild("table");
-		HTMLNode tableHeaders = inviteListing.addChild("tr");
-		tableHeaders.addChild("th", l10n("roomName"));
-		tableHeaders.addChild("th", l10n("username"));
-		tableHeaders.addChild("th", l10n("invitedBy"));
-		tableHeaders.addChild("th", l10n("accept"));
-		tableHeaders.addChild("th", l10n("reject"));
-		for (long globalIdentifier : receivedInvites.keySet()) {
-			N2NChatPlugin.chatInvite invite = receivedInvites.get(globalIdentifier);
-			HTMLNode entry = inviteListing.addChild("tr");
-			entry.addChild("td", invite.roomName);
-			entry.addChild("td", invite.username);
-			entry.addChild("td", invite.darkPeer.getName());
-			entry.addChild("td").addChild("a", "href", path()+"?accept="+globalIdentifier, l10n("accept") );
-			entry.addChild("td").addChild("a", "href", path()+"?reject="+globalIdentifier, l10n("reject") );
-		}
+		updateInvitationTable();
+		content.addChild("div", "id", "invitationContainer").addChild(invitationTable);
 
 		writeHTMLReply(ctx, 200, "OK", null, pn.outer.generate());
 	}
@@ -176,4 +171,23 @@ public class MainPageToadlet extends Toadlet implements LinkEnabledCallback {
 	private String l10n(String key) {
 		return l10n.getBase().getString("main."+key);
 	}
+
+	public void updateInvitationTable() {
+		invitationTable = new HTMLNode("table");
+		HTMLNode tableHeaders = invitationTable.addChild("tr");
+		tableHeaders.addChild("th", l10n("roomName"));
+		tableHeaders.addChild("th", l10n("username"));
+		tableHeaders.addChild("th", l10n("invitedBy"));
+		tableHeaders.addChild("th", l10n("accept"));
+		tableHeaders.addChild("th", l10n("reject"));
+		for (long globalIdentifier : receivedInvites.keySet()) {
+			N2NChatPlugin.chatInvite invite = receivedInvites.get(globalIdentifier);
+			HTMLNode entry = invitationTable.addChild("tr");
+			entry.addChild("td", invite.roomName);
+			entry.addChild("td", invite.username);
+			entry.addChild("td", invite.darkPeer.getName());
+			entry.addChild("td").addChild("a", "href", path()+"?accept="+globalIdentifier, l10n("accept") );
+			entry.addChild("td").addChild("a", "href", path()+"?reject="+globalIdentifier, l10n("reject") );
+		}
+    }
 }

@@ -109,69 +109,71 @@ public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 			return;
 		}
 
-		if (request.isParameterSet("room") && !request.getParam("room").isEmpty()) {
-			long globalIdentifier = Long.valueOf(request.getParam("room"));
-			//Ensure the chat room is valid.
-			ChatRoom chatRoom = chatRooms.get(globalIdentifier);
-			if (chatRoom == null) {
-				//TODO: localization
-				super.sendErrorPage(ctx, 500, "Invalid Room", "This node is not present in the specified room.");
-				return;
-			}
-
-			//Only messages have been requested.
-			if (request.isParameterSet("messagesPane")) {
-				writeHTMLReply(ctx, 200, "OK", null, chatRoom.getLog().generate());
-				return;
-			} else if (request.isParameterSet("participantsList")) {
-				writeHTMLReply(ctx, 200, "OK", null, chatRoom.getParticipantListing().generate());
-				return;
-			}
-			PageNode pn = ctx.getPageMaker().getPageNode(chatRoom.getRoomName(), ctx);
-			pn.addCustomStyleSheet("/n2n-chat/static/css/display.css");
-			pn.headNode.addChild("script",
-			        new String[] { "type", "src" },
-			        new String[] { "text/javascript", "/n2n-chat/static/js/jquery.min.js"});
-			pn.headNode.addChild("script",
-			        new String[] { "type", "src" },
-			        new String[] { "text/javascript", "/n2n-chat/static/js/display.js"});
-
-			//Add message display.
-			pn.content.addChild("div", "id", "messages-pane").addChild(chatRoom.getLog());
-
-			//Add list of current participants.
-			pn.content.addChild("div", "id", "participants-list").addChild(chatRoom.getParticipantListing());
-
-			//And ability to invite those not already participating. Don't display if all connected darknet
-			//peers are already participating.
-			ArrayList<DarknetPeerNode> uninvitedPeers = uninvitedPeers(globalIdentifier);
-			if (uninvitedPeers.size() > 0) {
-				//Allow inviting more participants.
-				HTMLNode inviteDiv = pn.content.addChild("div", "id", "invite-form");
-				HTMLNode inviteForm = ctx.addFormChild(inviteDiv, path(), "invite-participant");
-				inviteForm.addChild("input", new String[] { "type", "name", "value" },
-				        new String[] { "hidden", "room", String.valueOf(globalIdentifier) });
-				HTMLNode dropDown = inviteForm.addChild("select", "name", "invite");
-				for (DarknetPeerNode peerNode : uninvitedPeers) {
-					dropDown.addChild("option", "value", Base64.encode(peerNode.getPubKeyHash()),
-					        peerNode.getName());
-				}
-				inviteForm.addChild("input", new String[] { "type", "name", "value" },
-				        new String[] { "submit", "send-invite",
-				                l10n("sendInvitation")});
-			}
-
-			//Add message sending area.
-			HTMLNode messageDiv = pn.content.addChild("div", "id", "message-form");
-			HTMLNode messageEntry = ctx.addFormChild(messageDiv, path(), "send-message");
-			messageEntry.addChild("input", new String[] { "type", "name", "style" },
-			        new String[] { "text", "message", "width:100%;" });
-			messageEntry.addChild("input", new String[] { "type", "name", "value" },
-			        new String[] { "hidden", "room", String.valueOf(globalIdentifier)} );
-			writeHTMLReply(ctx, 200, "OK", null, pn.outer.generate());
-		} else {
+		if (!request.isParameterSet("room") || request.getParam("room").isEmpty()) {
 			super.sendErrorPage(ctx, 500, "Room Not Specified", "The room to display was not specified.");
+			return;
 		}
+
+		long globalIdentifier = Long.valueOf(request.getParam("room"));
+		//Ensure the chat room is valid.
+		ChatRoom chatRoom = chatRooms.get(globalIdentifier);
+		if (chatRoom == null) {
+			//TODO: localization
+			super.sendErrorPage(ctx, 500, "Invalid Room", "This node is not present in the specified room.");
+			return;
+		}
+
+		//Only messages have been requested.
+		if (request.isParameterSet("messagesPane")) {
+			writeHTMLReply(ctx, 200, "OK", null, chatRoom.getLog().generate());
+			return;
+		} else if (request.isParameterSet("participantsList")) {
+			writeHTMLReply(ctx, 200, "OK", null, chatRoom.getParticipantListing().generate());
+			return;
+		}
+
+		PageNode pn = ctx.getPageMaker().getPageNode(chatRoom.getRoomName(), ctx);
+		pn.addCustomStyleSheet("/n2n-chat/static/css/display.css");
+		pn.headNode.addChild("script",
+		        new String[] { "type", "src" },
+		        new String[] { "text/javascript", "/n2n-chat/static/js/jquery.min.js"});
+		pn.headNode.addChild("script",
+		        new String[] { "type", "src" },
+		        new String[] { "text/javascript", "/n2n-chat/static/js/display.js"});
+
+		//Add message display.
+		pn.content.addChild("div", "id", "messages-pane").addChild(chatRoom.getLog());
+
+		//Add list of current participants.
+		pn.content.addChild("div", "id", "participants-list").addChild(chatRoom.getParticipantListing());
+
+		//And ability to invite those not already participating. Don't display if all connected darknet
+		//peers are already participating.
+		ArrayList<DarknetPeerNode> uninvitedPeers = uninvitedPeers(globalIdentifier);
+		if (uninvitedPeers.size() > 0) {
+			//Allow inviting more participants.
+			HTMLNode inviteDiv = pn.content.addChild("div", "id", "invite-form");
+			HTMLNode inviteForm = ctx.addFormChild(inviteDiv, path(), "invite-participant");
+			inviteForm.addChild("input", new String[] { "type", "name", "value" },
+			        new String[] { "hidden", "room", String.valueOf(globalIdentifier) });
+			HTMLNode dropDown = inviteForm.addChild("select", "name", "invite");
+			for (DarknetPeerNode peerNode : uninvitedPeers) {
+				dropDown.addChild("option", "value", Base64.encode(peerNode.getPubKeyHash()),
+				        peerNode.getName());
+			}
+			inviteForm.addChild("input", new String[] { "type", "name", "value" },
+			        new String[] { "submit", "send-invite",
+			                l10n("sendInvitation")});
+		}
+
+		//Add message sending area.
+		HTMLNode messageDiv = pn.content.addChild("div", "id", "message-form");
+		HTMLNode messageEntry = ctx.addFormChild(messageDiv, path(), "send-message");
+		messageEntry.addChild("input", new String[] { "type", "name", "style" },
+		        new String[] { "text", "message", "width:100%;" });
+		messageEntry.addChild("input", new String[] { "type", "name", "value" },
+		        new String[] { "hidden", "room", String.valueOf(globalIdentifier)} );
+		writeHTMLReply(ctx, 200, "OK", null, pn.outer.generate());
 	}
 
 	public ArrayList<DarknetPeerNode> uninvitedPeers(long globalIdentifier) {
