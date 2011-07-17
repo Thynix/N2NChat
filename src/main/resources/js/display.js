@@ -31,6 +31,13 @@ $(document).ready(function() {
     event.preventDefault();
     var selectedPeer = inviteSelect.val();
     $.post('/n2n-chat/display/', { 'room' : room, 'invite' : selectedPeer, 'formPassword' : formPassword }, function() {
+      var numberOfPeers = $('[name="invite"] option').size();
+      //If going to go off the end, wrap to the beginning.
+      if (inviteSelect[0].selectedIndex + 1 == numberOfPeers) {
+        inviteSelect[0].selectedIndex = 0;
+      } else {
+        inviteSelect[0].selectedIndex++;
+      }
       //Someone was invited or uninvited, so reflect that immediately in the participants pane.
       refreshParticipantsList();
     });
@@ -51,7 +58,8 @@ $(document).ready(function() {
     $.get('/n2n-chat/display/', { 'room' : room, 'inviteDropDown' : 'only' }, function(data, status, jqXHR) {
       if (jqXHR.status == 200) {
         inviteContainer.html(data);
-        //The invite drop-down changed, so the participants list must have changed.
+        //The invite drop-down changed, which means someone accepted an invitation or disconnected,
+        //so the participants list must have changed.
         refreshParticipantsList();
       }
     });
