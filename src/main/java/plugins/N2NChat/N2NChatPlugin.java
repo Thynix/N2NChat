@@ -347,7 +347,7 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 				        receivedInvites.get(globalIdentifier).darkPeer == darkSource) {
 					Logger.minor(this, "Received invite retract from"+darkSource.getName()+
 					        " for the invite to room '"+receivedInvites.get(globalIdentifier).roomName+" ("+globalIdentifier+")");
-					receivedInvites.remove(darkSource.getPubKeyHash());
+					receivedInvites.remove(globalIdentifier);
 					mpt.updateInvitationTable();
 				}
 				return;
