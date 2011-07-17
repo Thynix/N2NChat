@@ -138,6 +138,7 @@ public class MainPageToadlet extends Toadlet implements LinkEnabledCallback {
 
 		//List current chat rooms
 		PageNode pn = ctx.getPageMaker().getPageNode(l10n("chatRoomListing"), ctx);
+		PageMaker pm = ctx.getPageMaker();
 		pn.addCustomStyleSheet("/n2n-chat/static/css/main-page.css");
 		pn.headNode.addChild("script",
 		        new String[] { "type", "src" },
@@ -146,7 +147,14 @@ public class MainPageToadlet extends Toadlet implements LinkEnabledCallback {
 		        new String[] { "type", "src" },
 		        new String[] { "text/javascript", "/n2n-chat/static/js/main-page.js"});
 		HTMLNode content = pn.content;
-		HTMLNode roomListing = content.addChild("ul",
+
+		if (chatRooms.isEmpty()) {
+			HTMLNode welcome = addInfoBox(l10n("welcome"), pm, content);
+			welcome.addChild("#", l10n("explain"));
+		}
+
+		HTMLNode roomsBox = addInfoBox(l10n("rooms"), pm, content);
+		HTMLNode roomListing = roomsBox.addChild("ul",
 		        new String[] { "class", "style" },
 		        new String[] { "room-listing", "list-style-type:none;" });
 		for (ChatRoom chatRoom : chatRooms.values()) {
@@ -164,15 +172,30 @@ public class MainPageToadlet extends Toadlet implements LinkEnabledCallback {
 		//Allow creating a new room
 		HTMLNode createChatForm = ctx.addFormChild(roomListing, path(), "create-room");
 		createChatForm.addChild("input", new String[] {"type", "name", "value"},
-		        new String[] { "text", "new-room-name", "New room name"});
+		        new String[] { "text", "new-room-name", l10n("newRoom") });
 		createChatForm.addChild("input", new String[] { "type", "name", "value"},
-		        new String[] { "submit", "create-chat", l10n("newRoom") });
+		        new String[] { "submit", "create-chat", l10n("create") });
 
 		//List received invitations.
+		HTMLNode invitationsBox = addInfoBox(l10n("pendingInvitations"), pm, content);
 		updateInvitationTable();
-		content.addChild("div", "id", "invitationContainer").addChild(invitationTable);
+		invitationsBox.addChild("div", "id", "invitationContainer").addChild(invitationTable);
 
 		writeHTMLReply(ctx, 200, "OK", null, pn.outer.generate());
+	}
+
+	//TODO: This is much more general than just the main page toadlet; where can it go?
+	/**
+	 * Adds an InfoBox with the given title to the parent HTMLNode. Idea credit to p0s/x0r in Freetalk.
+	 * @param infoBoxTitle The title of the InfoBox.
+	 * @param pm The pageMaker to get the InfoBox from.
+	 * @param parent Parent HTMLNode to add the InfoBox to.
+	 * @return HTMLNode of the InfoBox's content.
+	 */
+	private HTMLNode addInfoBox(String infoBoxTitle, PageMaker pm, HTMLNode parent) {
+		InfoboxNode invitationsBox = pm.getInfobox(infoBoxTitle);
+		parent.addChild(invitationsBox.outer);
+		return invitationsBox.content;
 	}
 
 	private String l10n(String key) {
