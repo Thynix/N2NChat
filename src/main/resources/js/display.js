@@ -71,7 +71,7 @@ $(document).ready(function() {
       $.get('/n2n-chat/display/', { 'room' : room, 'messagesPane' : 'only' }, function(data, status, jqXHR) {
         if (jqXHR.status == 200) {
           msgPane.html(data);
-          msgPane.animate({scrollTop: msgPane[0].scrollHeight});
+          scrollToBottom(msgPane, true);
         }
       });
     } else {
@@ -89,6 +89,14 @@ $(document).ready(function() {
       return msgPane[0].scrollHeight - msgPane.height() - msgPane.scrollTop() < 0;
   }
 
+  function scrollToBottom(element, animate) {
+    if (animate) {
+      element.animate({scrollTop: element[0].scrollHeight});
+    } else {
+      element.prop({scrollTop: element[0].scrollHeight});
+    }
+  }
+
   function refreshPanes() {
     refreshMessagePane();
     refreshParticipantsList();
@@ -96,5 +104,9 @@ $(document).ready(function() {
     setTimeout(refreshPanes, 1000);
   }
 
-  refreshPanes();
+  //Scroll to bottom of messages pane so that it starts out at the latest messages if there are already messages
+  //in this room.
+  scrollToBottom(msgPane, false);
+
+  setTimeout(refreshPanes, 1000);
 });
