@@ -30,7 +30,8 @@ public class MainPageToadlet extends Toadlet implements LinkEnabledCallback {
 	private HashMap<Long, N2NChatPlugin.chatInvite> receivedInvites;
 	private PluginL10n l10n;
 	public static final int roomNameTruncate = 255;
-    private HTMLNode invitationTable;
+	private HTMLNode invitationTable;
+	private boolean updatedInvites;
 
 	public MainPageToadlet(N2NChatPlugin chatPlugin) {
 		super(chatPlugin.pluginRespirator().getHLSimpleClient());
@@ -125,8 +126,14 @@ public class MainPageToadlet extends Toadlet implements LinkEnabledCallback {
 			//Invite is rejected and so no longer pending.
 			receivedInvites.remove(globalIdentifier);
 		} else if (request.isParameterSet("invitationTable")) {
-			writeHTMLReply(ctx, 200, "OK", null, invitationTable.generate());
-			return;
+			if (updatedInvites) {
+				updatedInvites = false;
+				writeHTMLReply(ctx, 200, "OK", invitationTable.generate());
+				return;
+			} else {
+				writeHTMLReply(ctx, 304, "Not Modified", "");
+				return;
+			}
 		}
 
 		//List current chat rooms
@@ -189,5 +196,7 @@ public class MainPageToadlet extends Toadlet implements LinkEnabledCallback {
 			entry.addChild("td").addChild("a", "href", path()+"?accept="+globalIdentifier, l10n("accept") );
 			entry.addChild("td").addChild("a", "href", path()+"?reject="+globalIdentifier, l10n("reject") );
 		}
+
+		updatedInvites = true;
     }
 }
