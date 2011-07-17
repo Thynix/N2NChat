@@ -39,6 +39,8 @@ public class ChatRoom {
 	 */
 	private NameEntry username;
 	private PluginL10n l10n;
+	private boolean messagesUpdated;
+	private boolean participantsUpdated;
 
 	//TODO: Participant icons for whether messages sent to them have gone through. Would require ACKs in the case of
 	//TODO: participants that are not directly connected.
@@ -65,6 +67,7 @@ public class ChatRoom {
 		log = new HTMLNode("ul", "class", "list-pane");
 		//Start out the chat by setting the day.
 		log.addChild("li", N2NChatPlugin.dayChangeFormat.format(lastLineTime.getTime()));
+		messagesUpdated = true;
 		updateParticipantListing();
 	}
 
@@ -314,12 +317,35 @@ public class ChatRoom {
 	}
 
 	//TODO: Log persistance.
-	public HTMLNode getLog() {
-		return log;
+	/**
+	 * Retrieves the message log and handles change flagging.
+	 * @param onlyIfUpdated If true, the HTMLNode is only returned if it has changed, and null otherwise.
+	 * @return Log HTMLNode or null if onlyIfUpdated is true. Log HTMLNode if onlyIfUpdated is false.
+	 */
+	public HTMLNode getLog(boolean onlyIfUpdated) {
+		if (messagesUpdated || !onlyIfUpdated) {
+			messagesUpdated = false;
+			return log;
+		} else {
+			return null;
+		}
 	}
 
-	public HTMLNode getParticipantListing() {
-		return participantListing;
+	/**
+	 * Gets the participants listing. Returns null if onlyIfUpdated is false. This is done so that changing the
+	 * change tracking variable is ChatRoom-side, which avoids possible race conditions like another change occurring
+	 * between a Toadlet-side check and set, which would cause a change to be invisible.
+	 * @param onlyIfUpdated If true, returns the listing only if it has changed,
+	 * @return If onlyIfUpdated is true, return the HTMLNode if it has changed and null if it hasn't.
+	 * If onlyIfUpdated is false, it always returns the HTMLNode.
+	 */
+	public HTMLNode getParticipantListing(boolean onlyIfUpdated) {
+		if (participantsUpdated || !onlyIfUpdated) {
+			participantsUpdated = false;
+			return participantListing;
+		} else {
+			return null;
+		}
 	}
 
 	public long getGlobalIdentifier() {
@@ -440,6 +466,8 @@ public class ChatRoom {
 			        new String[] { entry.nameStyle, routing },
 			        entry.name+suffix);
 		}
+
+		participantsUpdated = true;
 	}
 
 	public void sendOwnMessage(String message) {
@@ -480,6 +508,8 @@ public class ChatRoom {
 
 		//Ex: ": Blah blah blah." or " disconnected."
 		messageLine.addChild("#", message);
+
+		messagesUpdated = true;
 	}
 
 	/**

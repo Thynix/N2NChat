@@ -19,21 +19,28 @@ $(document).ready(function() {
     });
 
   function refreshParticipantsList() {
-    $.get('/n2n-chat/display/', { 'room' : room, 'participantsList' : 'only' }, function(data) {
-      $('#participants-list').html(data);
+    $.get('/n2n-chat/display/', { 'room' : room, 'participantsList' : 'only' }, function(data, status, jqXHR) {
+      //Only update if there was a change.
+      if (jqXHR.status == 200) {
+        $('#participants-list').html(data);
+      }
     });
   }
 
   function refreshMessagePane() {
     //If at the bottom, load new content, then scroll down to the new bottom.
     if (atBottom()) {
-      $.get('/n2n-chat/display/', { 'room' : room, 'messagesPane' : 'only' }, function(data) {
-        msgPane.html(data);
-        msgPane.animate({scrollTop: msgPane[0].scrollHeight});
+      $.get('/n2n-chat/display/', { 'room' : room, 'messagesPane' : 'only' }, function(data, status, jqXHR) {
+        if (jqXHR.status == 200) {
+          msgPane.html(data);
+          msgPane.animate({scrollTop: msgPane[0].scrollHeight});
+        }
       });
     } else {
-       $.get('/n2n-chat/display/', { 'room' : room, 'messagesPane' : 'only' }, function(data) {
-        msgPane.html(data);
+       $.get('/n2n-chat/display/', { 'room' : room, 'messagesPane' : 'only' }, function(data, status, jqXHR) {
+         if (jqXHR.status == 200) {
+           msgPane.html(data);
+         }
       });
     }
   }

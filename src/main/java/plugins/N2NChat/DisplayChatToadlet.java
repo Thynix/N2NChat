@@ -60,13 +60,13 @@ public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 		//Ensure that the form password is correctly set.
 		String pass = request.getPartAsStringFailsafe("formPassword", 32);
 		if ( pass == null || !pass.equals(node.clientCore.formPassword)) {
-			selfRefresh(globalIdentifier, ctx);
+			writeHTMLReply(ctx, 204, "No Content", "");
 			return;
 		}
 
 		if (request.isPartSet("message") && !request.getPartAsStringFailsafe("message", 4096).isEmpty()) {
 			chatRooms.get(globalIdentifier).sendOwnMessage(request.getPartAsStringFailsafe("message", 4096));
-			selfRefresh(globalIdentifier, ctx);
+			writeHTMLReply(ctx, 204, "No Content", "");
 			return;
 		} else if (request.isPartSet("invite") && !request.getPartAsStringFailsafe("invite", 4096).isEmpty()) {
 			//TODO: What is the length of a public key hash? (when base 64 encoded?)
@@ -125,10 +125,21 @@ public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 
 		//Only messages have been requested.
 		if (request.isParameterSet("messagesPane")) {
-			writeHTMLReply(ctx, 200, "OK", null, chatRoom.getLog().generate());
+			//Initial load is performed in first GET. Anything AJAX need only be done if further changes occur.
+			HTMLNode pane = chatRoom.getLog(true);
+			if (pane != null) {
+				writeHTMLReply(ctx, 200, "OK", null, pane.generate());
+			} else {
+				writeHTMLReply(ctx, 304, "Not Modified", "");
+			}
 			return;
 		} else if (request.isParameterSet("participantsList")) {
-			writeHTMLReply(ctx, 200, "OK", null, chatRoom.getParticipantListing().generate());
+			HTMLNode pane = chatRoom.getParticipantListing(true);
+			if (pane != null) {
+				writeHTMLReply(ctx, 200, "OK", null, pane.generate());
+			} else {
+				writeHTMLReply(ctx, 304, "Not Modified", "");
+			}
 			return;
 		}
 
@@ -142,10 +153,10 @@ public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 		        new String[] { "text/javascript", "/n2n-chat/static/js/display.js"});
 
 		//Add message display.
-		pn.content.addChild("div", "id", "messages-pane").addChild(chatRoom.getLog());
+		pn.content.addChild("div", "id", "messages-pane").addChild(chatRoom.getLog(false));
 
 		//Add list of current participants.
-		pn.content.addChild("div", "id", "participants-list").addChild(chatRoom.getParticipantListing());
+		pn.content.addChild("div", "id", "participants-list").addChild(chatRoom.getParticipantListing(false));
 
 		//And ability to invite those not already participating. Don't display if all connected darknet
 		//peers are already participating.
