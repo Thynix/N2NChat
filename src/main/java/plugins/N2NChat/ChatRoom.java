@@ -9,7 +9,13 @@ import freenet.support.SimpleFieldSet;
 
 import java.awt.*;
 import java.io.UnsupportedEncodingException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
 
 /**
  * The ChatRoom class keeps track of what has been said in a chat room, parses new messages, formats them, and is
@@ -41,6 +47,7 @@ public class ChatRoom {
 	private PluginL10n l10n;
 	private boolean messagesUpdated;
 	private boolean participantsUpdated;
+	private ArrayList<DarknetPeerNode> lastInvitable;
 
 	//TODO: Participant icons for whether messages sent to them have gone through. Would require ACKs in the case of
 	//TODO: participants that are not directly connected.
@@ -68,6 +75,7 @@ public class ChatRoom {
 		//Start out the chat by setting the day.
 		log.addChild("li", N2NChatPlugin.dayChangeFormat.format(lastLineTime.getTime()));
 		messagesUpdated = true;
+		lastInvitable = null;
 		updateParticipantListing();
 	}
 
@@ -86,6 +94,29 @@ public class ChatRoom {
 		ByteArray pubKeyHash = new ByteArray(invitedBy.getPubKeyHash());
 		participants.put(pubKeyHash, new Participant(invitedBy.getName(), pubKeyHash, invitedBy, true, false));
 		updateParticipantListing();
+	}
+
+	/**
+	 * Generates a list of DarknetPeerNodes that are not participating, and so either have not been invited, or
+	 * have been send an invitation but it is still pending.
+	 * @param nodes Available DarknetPeerNodes.
+	 * @param onlyIfChanged If true, returns the list only if it has changed. If false, always returns it.
+	 * @return List of DarknetPeerNodes or null.
+	 */
+	public ArrayList<DarknetPeerNode> invitablePeers(DarknetPeerNode[] nodes, boolean onlyIfChanged) {
+		ArrayList<DarknetPeerNode> list = new ArrayList<DarknetPeerNode>();
+		for (DarknetPeerNode peerNode : nodes) {
+			if (!containsParticipant(new ByteArray(peerNode.getPubKeyHash()))) {
+				list.add(peerNode);
+			}
+		}
+
+		if (!list.equals(lastInvitable) || !onlyIfChanged) {
+			lastInvitable = list;
+			return list;
+		} else {
+			return null;
+		}
 	}
 
 	//TODO: This should move out of the chat room and into N2NPlugin to avoid having multiple copies.
@@ -433,7 +464,7 @@ public class ChatRoom {
 
 		participantListing = new HTMLNode("ul", "class", "list-pane");
 		participantListing.addChild("li", l10n("participantsPresent", "numberOf",
-		        String.valueOf(participants.size()+1)));
+			String.valueOf(participants.size() + 1)));
 
 		//List participants with colored name text and routing information on tooltip.
 		for (NameEntry entry : names) {
@@ -449,10 +480,10 @@ public class ChatRoom {
 					                Base64.encode(participant.peerNode.getPubKeyHash()) });
 				} else {
 					routing = l10n("connectedThrough",
-						new String[] { "nodeName", "nodeID", "pubKeyHash" },
-						new String[] { participant.peerNode.getName(),
-							Base64.encode(participant.peerNode.getPubKeyHash()),
-							Base64.encode(participant.pubKeyHash.getBytes()) });
+					        new String[] { "nodeName", "nodeID", "pubKeyHash" },
+					        new String[] { participant.peerNode.getName(),
+					                Base64.encode(participant.peerNode.getPubKeyHash()),
+					                Base64.encode(participant.pubKeyHash.getBytes()) });
 				}
 			} else if (entry.equals(username)) {
 				suffix = " ("+l10n("you")+')';
@@ -461,6 +492,7 @@ public class ChatRoom {
 				//TODO: if usernames can differ from node nicknames.
 				suffix = " ("+l10n("invitePending")+')';
 			}
+
 			participantListing.addChild("li",
 			        new String[] { "style", "title" },
 			        new String[] { entry.nameStyle, routing },
@@ -563,7 +595,7 @@ public class ChatRoom {
 
 		formatPubKeyHash(composedBy, fs);
 		Logger.minor(this, "Sent message composed " + (composedBy == null ? "locally" : "by " +
-		         participants.get(composedBy).name) + " in room '"+roomName+"' (" + globalIdentifier + ") to " + darkPeer.getName());
+			participants.get(composedBy).name) + " in room '" + roomName + "' (" + globalIdentifier + ") to " + darkPeer.getName());
 		sendBase(darkPeer, fs, N2NChatPlugin.MESSAGE);
 	}
 
@@ -633,9 +665,10 @@ public class ChatRoom {
 			Logger.minor(this, "Retracted "+darkPeer.getName()+"'s invite to room "+globalIdentifier);
 			sendBase(darkPeer, null, N2NChatPlugin.RETRACT_INVITE);
 			sentInvites.remove(new ByteArray(darkPeer.getPubKeyHash()));
+			updateParticipantListing();
 			return true;
 		} else {
-			Logger.warning(this, "Attempted to remove "+darkPeer.getName()+"'s invite to room "+globalIdentifier);
+			Logger.warning(this, "Attempted to remove nonexistent "+darkPeer.getName()+"'s invite to room "+globalIdentifier);
 		}
 		return false;
 	}
@@ -661,7 +694,7 @@ public class ChatRoom {
 	}
 
 	public boolean receiveInviteAccept(DarknetPeerNode darkPeer) {
-		Logger.minor(this, darkPeer.getName()+" accepted an invite to room '"+roomName+"' ("+globalIdentifier+")");
+		Logger.minor(this, darkPeer.getName() + " accepted an invite to room '" + roomName + "' (" + globalIdentifier + ")");
 		return receiveInvite(darkPeer, true);
 	}
 
@@ -731,8 +764,7 @@ public class ChatRoom {
 		}
 	}
 
-	/**
-	 * Base class for Participant. Tracks name and name CSS styling. Used for pending invites and one's own name
+	/** Base class for Participant. Tracks name and name CSS styling. Used for pending invites and one's own name
 	 * in the participants panel. This is done so they can all be alphabetically sorted by name and still colored.
 	 * It also includes the public key hash used to style, if applicable, for use in tooltips.
 	 */

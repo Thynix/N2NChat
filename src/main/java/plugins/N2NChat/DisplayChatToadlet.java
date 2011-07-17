@@ -83,8 +83,14 @@ public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 					super.sendErrorPage(ctx, 500, "Invalid public key hash", "A peer with that hash does not exist.");
 					return;
 				}
-				chatRooms.get(globalIdentifier).sendInviteOffer(peerNode, peerNode.getName());
-				selfRefresh(globalIdentifier, ctx);
+				ChatRoom chatRoom = chatRooms.get(globalIdentifier);
+				//Invitation already exists, retract it.
+				if (chatRoom.inviteSentTo(new ByteArray(pubKeyHash))) {
+					chatRoom.sendInviteRetract(peerNode);
+				} else {
+					chatRoom.sendInviteOffer(peerNode, peerNode.getName());
+				}
+				writeHTMLReply(ctx, 204, "No Content", "");
 				return;
 			} catch (IllegalBase64Exception e) {
 				super.sendErrorPage(ctx, 500, "Invalid public key hash", "The public key hash to invite was not valid base 64 encoding.");
@@ -141,6 +147,15 @@ public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 				writeHTMLReply(ctx, 304, "Not Modified", "");
 			}
 			return;
+		} else if (request.isParameterSet("inviteDropDown")) {
+			ArrayList<DarknetPeerNode> peers = chatRoom.invitablePeers(node.getDarknetConnections(), true);
+			if (peers != null) {
+				HTMLNode dropDown = generateInviteDropdown(ctx, peers, globalIdentifier);
+				writeHTMLReply(ctx, 200, "OK", null, dropDown.generate());
+			} else {
+				writeHTMLReply(ctx, 304, "Not Modified", "");
+			}
+			return;
 		}
 
 		PageNode pn = ctx.getPageMaker().getPageNode(chatRoom.getRoomName(), ctx);
@@ -158,23 +173,12 @@ public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 		//Add list of current participants.
 		pn.content.addChild("div", "id", "participants-list").addChild(chatRoom.getParticipantListing(false));
 
-		//And ability to invite those not already participating. Don't display if all connected darknet
-		//peers are already participating.
-		ArrayList<DarknetPeerNode> uninvitedPeers = uninvitedPeers(globalIdentifier);
-		if (uninvitedPeers.size() > 0) {
-			//Allow inviting more participants.
-			HTMLNode inviteDiv = pn.content.addChild("div", "id", "invite-form");
-			HTMLNode inviteForm = ctx.addFormChild(inviteDiv, path(), "invite-participant");
-			inviteForm.addChild("input", new String[] { "type", "name", "value" },
-			        new String[] { "hidden", "room", String.valueOf(globalIdentifier) });
-			HTMLNode dropDown = inviteForm.addChild("select", "name", "invite");
-			for (DarknetPeerNode peerNode : uninvitedPeers) {
-				dropDown.addChild("option", "value", Base64.encode(peerNode.getPubKeyHash()),
-				        peerNode.getName());
-			}
-			inviteForm.addChild("input", new String[] { "type", "name", "value" },
-			        new String[] { "submit", "send-invite",
-			                l10n("sendInvitation")});
+		//Drop-down to invite those not already participating, or retract an existing invitation.
+		//Don't display if all connected darknet peers are already participating.
+		ArrayList<DarknetPeerNode> invitablePeers = chatRoom.invitablePeers(node.getDarknetConnections(), false);
+		HTMLNode inviteContainer = pn.content.addChild("div", "id", "invite-container");
+		if (invitablePeers.size() > 0) {
+			inviteContainer.addChild(generateInviteDropdown(ctx, invitablePeers, globalIdentifier));
 		}
 
 		//Add message sending area.
@@ -187,16 +191,21 @@ public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 		writeHTMLReply(ctx, 200, "OK", null, pn.outer.generate());
 	}
 
-	public ArrayList<DarknetPeerNode> uninvitedPeers(long globalIdentifier) {
-		ChatRoom chatRoom = chatRooms.get(globalIdentifier);
-		ArrayList<DarknetPeerNode> list = new ArrayList<DarknetPeerNode>();
-		for (DarknetPeerNode peerNode : node.getDarknetConnections()) {
-			if (!chatRoom.containsParticipant(new ByteArray(peerNode.getPubKeyHash())) &&
-			        !chatRoom.inviteSentTo(new ByteArray(peerNode.getPubKeyHash()))) {
-				list.add(peerNode);
-			}
+	private HTMLNode generateInviteDropdown(ToadletContext ctx, ArrayList<DarknetPeerNode> invitablePeers, long globalIdentifier) {
+		HTMLNode inviteDiv = new HTMLNode("div", "id", "invite-form");
+		HTMLNode inviteForm = ctx.addFormChild(inviteDiv, path(), "invite-participant");
+		inviteForm.addChild("input", new String[] { "type", "name", "value" },
+			new String[] { "hidden", "room", String.valueOf(globalIdentifier) });
+		HTMLNode dropDown = inviteForm.addChild("select", "name", "invite");
+		for (DarknetPeerNode peerNode : invitablePeers) {
+			dropDown.addChild("option", "value", Base64.encode(peerNode.getPubKeyHash()),
+				peerNode.getName());
 		}
-		return list;
+		inviteForm.addChild("input", new String[] { "type", "name", "value" },
+			new String[] { "submit", "send-invite",
+				l10n("(un)invite")});
+
+		return inviteDiv;
 	}
 
 	private String l10n(String key) {

@@ -54,8 +54,8 @@ body {
     background-color:white;
 }
 
-/*Form to invite more participants*/
-#invite-form {
+/*Container for form to invite more participants*/
+#invite-container {
     padding: 0;
     margin: 0;
     position: absolute;

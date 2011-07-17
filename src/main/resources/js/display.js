@@ -1,9 +1,16 @@
 $(document).ready(function() {
+  //Needed for sending requests.
   var room = $('[name="room"]').val();
   var formPassword = $('[name="formPassword"]').val();
+
+  //Put the elements in variables to avoid repetitive lookup calls.
   var element = $('[name="message"]');
   var msgPane = $('#messages-pane');
+  var participantsList = $('#participants-list');
+  var inviteContainer = $('#invite-container');
+  var inviteSelect = $('[name="invite"]');
 
+  //Enter in the messages text field.
   element.keydown(function(event) {
     if (event.which == 13) {
       //As this is being POSTed manually, suppress the form submitting again, which would submit twice.
@@ -13,16 +20,39 @@ $(document).ready(function() {
       var message = element.val();
       $.post('/n2n-chat/display/', { 'room' : room, 'message' : message, 'formPassword' : formPassword }, function() {
         element.val("");
-        refreshPanes();
+        refreshMessagePane();
       });
-     }
+    }
+  });
+
+  //Clicking on the send invite button.
+  $('[name="send-invite"]').click(function(event) {
+    //Suppress double-submit.
+    event.preventDefault();
+    var selectedPeer = inviteSelect.val();
+    $.post('/n2n-chat/display/', { 'room' : room, 'invite' : selectedPeer, 'formPassword' : formPassword }, function() {
+      //Someone was invited or uninvited, so reflect that immediately in the participants pane.
+      refreshParticipantsList();
     });
+  });
 
   function refreshParticipantsList() {
     $.get('/n2n-chat/display/', { 'room' : room, 'participantsList' : 'only' }, function(data, status, jqXHR) {
       //Only update if there was a change.
       if (jqXHR.status == 200) {
-        $('#participants-list').html(data);
+        participantsList.html(data);
+        //There was a change; perhaps someone accepted a pending invite and the drop-down changed.
+        refreshInviteDropDown();
+      }
+    });
+  }
+
+  function refreshInviteDropDown() {
+    $.get('/n2n-chat/display/', { 'room' : room, 'inviteDropDown' : 'only' }, function(data, status, jqXHR) {
+      if (jqXHR.status == 200) {
+        inviteContainer.html(data);
+        //The invite drop-down changed, so the participants list must have changed.
+        refreshParticipantsList();
       }
     });
   }
@@ -54,6 +84,7 @@ $(document).ready(function() {
   function refreshPanes() {
     refreshMessagePane();
     refreshParticipantsList();
+    refreshInviteDropDown();
     setTimeout(refreshPanes, 1000);
   }
 
