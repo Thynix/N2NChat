@@ -66,16 +66,10 @@ public class StaticResourceToadlet extends Toadlet {
 		}
 	}
 
-	private static String getMimeType(String URL) {
-		//TODO: How to properly get MIME Type?
-		//FileNameMap fileNameMap = URLConnection.getFileNameMap();
-		//return fileNameMap.getContentTypeFor(URL);
-		if (URL.endsWith(".css")) {
-			return "text/css";
-		} else if (URL.endsWith(".js")) {
-			return "text/javascript";
-		}
-		return "unknown";
+	private static String getMimeType(String URLString) {
+                URL urlName = new URL(URLString);
+                URLConnection connect = urlName.openConnection();
+		return connect.getContentType();
 	}
 }
 
