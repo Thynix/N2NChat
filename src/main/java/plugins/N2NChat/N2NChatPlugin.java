@@ -16,10 +16,7 @@
 package plugins.N2NChat;
 
 import freenet.client.filter.ContentFilter;
-import freenet.clients.http.RedirectException;
-import freenet.clients.http.Toadlet;
-import freenet.clients.http.ToadletContext;
-import freenet.clients.http.ToadletContextClosedException;
+import freenet.clients.http.*;
 import freenet.l10n.BaseL10n.LANGUAGE;
 import freenet.l10n.PluginL10n;
 import freenet.node.DarknetPeerNode;
@@ -34,6 +31,7 @@ import freenet.support.SimpleFieldSet;
 import freenet.support.api.HTTPRequest;
 import freenet.support.io.Closer;
 
+import javax.xml.soap.Node;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -41,6 +39,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.URLConnection;
 import java.net.URI;
 import java.text.SimpleDateFormat;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 
@@ -92,6 +91,12 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 	/** Date format used for the "time composed" timestamp on messages. Ex: 04:48:30 PM, June 1, 2011*/
 	public static final SimpleDateFormat composedFormat = new SimpleDateFormat("hh:mm:ss a, MMMM dd, yyyy");
 
+	/** Key is global identifier*/
+	public HashMap<Long, chatInvite> receivedInvites;
+
+	/** Prefix for strings to pass through l10n. Used to put room names in chat menu.*/
+	public static final String l10nRaw = "RAWSTRING.";
+
 	//
 	// MEMBER VARIABLES
 	//
@@ -102,18 +107,20 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 	/** The plugin respirator. */
 	private PluginRespirator pluginRespirator;
 
+	private ToadletContainer tc;
+
 	/** The l10n helper. */
 	private PluginL10n l10n;
 
 	/** HashMap containing all chat rooms this node is present in. The key is the global identifier. */
-	public HashMap<Long, ChatRoom> chatRooms;
-
-	/** Key is global identifier*/
-	public HashMap<Long, chatInvite> receivedInvites;
+	private HashMap<Long, ChatRoom> chatRooms;
 
 	private MainPageToadlet mpt;
 	private DisplayChatToadlet displayChatToadlet;
 	private StaticResourceToadlet srt;
+
+	/**l10n key for chat menu name */
+	private static final String chatMenu = "plugin.menuName";
 
 	//
 	// ACCESSORS
@@ -121,7 +128,6 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 
 	/**
 	 * Returns the plugin respirator for this plugin.
-	 *
 	 * @return The plugin respirator
 	 */
 	public PluginRespirator pluginRespirator() {
@@ -130,11 +136,44 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 
 	/**
 	 * Returns the plugin’s l10n helper.
-	 *
 	 * @return The plugin’s l10n helper
 	 */
 	public PluginL10n l10n() {
 		return l10n;
+	}
+
+	public boolean roomExists(long globalIdentifier) {
+		return chatRooms.containsKey(globalIdentifier);
+	}
+
+	public ChatRoom getRoom(long globalIdentifier) {
+		return chatRooms.get(globalIdentifier);
+	}
+
+	public Collection<ChatRoom> getRooms() {
+		return chatRooms.values();
+	}
+
+	public boolean noRooms() {
+		return chatRooms.isEmpty();
+	}
+
+	//
+	// MODIFIERS
+	//
+
+	public ChatRoom removeChatRoom(long globalIdentifier) {
+		return chatRooms.remove(globalIdentifier);
+	}
+
+	public ChatRoom addChatRoom(long globalIdentifier, String roomName, String username) {
+		return chatRooms.put(globalIdentifier, new ChatRoom(roomName, globalIdentifier, username,
+		        pluginRespirator.getNode().getDarknetConnections(), l10n));
+	}
+
+	public ChatRoom addChatRoom(long globalIdentifier, String roomName, String username, DarknetPeerNode invitedBy) {
+		return chatRooms.put(globalIdentifier, new ChatRoom(roomName, globalIdentifier, username,
+		        pluginRespirator.getNode().getDarknetConnections(), l10n, invitedBy));
 	}
 
 	//
@@ -149,18 +188,19 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 		this.pluginRespirator = pr;
 		this.chatRooms = new HashMap<Long, ChatRoom>();
 		this.receivedInvites = new HashMap<Long, chatInvite>();
+		this.tc = pr.getToadletContainer();
 
 		//TODO: Need to store and retrieve config somehow.
 		mpt = new MainPageToadlet(this);
 		pr.getPageMaker().addNavigationCategory(mpt.path(), "plugin.menuName", "plugin.menuName.tooltip", this);
-		pr.getToadletContainer().register(mpt,
-		         "plugin.menuName", mpt.path(), true, "plugin.mainPage", "plugin.mainPage.tooltip", false, mpt);
-		pr.getToadletContainer().register(mpt, null, mpt.path(), true, false);
+		tc.register(mpt, chatMenu, mpt.path(), true, "plugin.mainPage", "plugin.mainPage.tooltip", false, mpt);
+		tc.register(mpt, null, mpt.path(), true, false);
 
 		displayChatToadlet = new DisplayChatToadlet(this);
 		srt = new StaticResourceToadlet(pr);
-		pr.getToadletContainer().register(displayChatToadlet, null, displayChatToadlet.path(), true, false);
-		pr.getToadletContainer().register(srt, null, srt.path(), true, false);
+		tc.register(displayChatToadlet, null, displayChatToadlet.path(), true, false);
+		tc.register(srt, null, srt.path(), true, false);
+
 		pr.getNode().registerNodeToNodeMessageListener(N2N_MESSAGE_TYPE_CHAT, N2NChatListener);
 	}
 
@@ -192,6 +232,9 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 	 */
 	@Override
 	public String getString(String key) {
+		if (key.startsWith(l10nRaw)) {
+			return key.substring(l10nRaw.length());
+		}
 		return l10n.getBase().getString(key);
 	}
 
@@ -285,6 +328,7 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 		}
 	}
 
+	//N2N message listener for chat messages. Registered in RunPlugin().
 	private NodeToNodeMessageListener N2NChatListener = new NodeToNodeMessageListener() {
 		public void handleMessage(byte[] data, boolean fromDarknet, PeerNode source, int type) {
 			if (!fromDarknet) {

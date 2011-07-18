@@ -22,16 +22,17 @@ import java.util.HashMap;
  */
 public class MainPageToadlet extends Toadlet implements LinkEnabledCallback {
 
+	public static final int roomNameTruncate = 255;
+
 	//TODO: Do we really have to take all this stuff from the chatPlugin? Seems excessive...
 	private Node node;
 	private NodeClientCore clientCore;
 	private PluginRespirator pluginRespirator;
-	private HashMap<Long, ChatRoom> chatRooms;
 	private HashMap<Long, N2NChatPlugin.chatInvite> receivedInvites;
 	private PluginL10n l10n;
-	public static final int roomNameTruncate = 255;
 	private HTMLNode invitationTable;
 	private boolean updatedInvites;
+	private N2NChatPlugin chatPlugin;
 
 	public MainPageToadlet(N2NChatPlugin chatPlugin) {
 		super(chatPlugin.pluginRespirator().getHLSimpleClient());
@@ -39,8 +40,8 @@ public class MainPageToadlet extends Toadlet implements LinkEnabledCallback {
 		this.pluginRespirator = chatPlugin.pluginRespirator();
 		this.node = chatPlugin.pluginRespirator().getNode();
 		this.l10n = chatPlugin.l10n();
-		this.chatRooms = chatPlugin.chatRooms;
 		this.receivedInvites = chatPlugin.receivedInvites;
+		this.chatPlugin = chatPlugin;
 	}
 
 	public String path() {
@@ -67,12 +68,12 @@ public class MainPageToadlet extends Toadlet implements LinkEnabledCallback {
 
 		if (request.isPartSet("disconnect")) {
 			long globalIdentifier = Long.parseLong(request.getPartAsStringFailsafe("globalIdentifier", 4096));
-			if (!chatRooms.containsKey(globalIdentifier)) {
+			if (!chatPlugin.roomExists(globalIdentifier)) {
 				super.sendErrorPage(ctx, 403, l10n("invalidRoomTitle"), l10n("invalidRoom"));
 				return;
 			}
-			chatRooms.get(globalIdentifier).disconnect();
-			chatRooms.remove(globalIdentifier);
+			chatPlugin.getRoom(globalIdentifier).disconnect();
+			chatPlugin.removeChatRoom(globalIdentifier);
 		}
 
 		//TODO: Tell user about the maximum length of the room name instead of silently truncating.
@@ -81,9 +82,7 @@ public class MainPageToadlet extends Toadlet implements LinkEnabledCallback {
 			long globalIdentifier = node.random.nextLong();
 			String roomName = request.getPartAsStringFailsafe("new-room-name", roomNameTruncate);
 			String userName = node.getMyName();
-			DarknetPeerNode[] darknetPeerNodes = node.getDarknetConnections();
-			chatRooms.put(globalIdentifier,
-			        new ChatRoom(roomName, globalIdentifier, userName, darknetPeerNodes, l10n));
+			chatPlugin.addChatRoom(globalIdentifier, roomName, userName);
 		}
 		handleMethodGET(uri, request, ctx);
 	}
@@ -105,12 +104,9 @@ public class MainPageToadlet extends Toadlet implements LinkEnabledCallback {
 				return;
 			}
 			N2NChatPlugin.chatInvite invite = receivedInvites.get(globalIdentifier);
-			//Create the room.
-			ChatRoom chatRoom = new ChatRoom(invite.roomName, globalIdentifier, invite.username,
-			        pluginRespirator.getNode().getDarknetConnections(), l10n, invite.darkPeer);
-			//Add the room to the list of rooms.
-			chatRooms.put(globalIdentifier, chatRoom);
-			//Send invite acceptance.
+			//Create the new room.
+			chatPlugin.addChatRoom(globalIdentifier, invite.roomName, invite.username, invite.darkPeer);
+			//Then send invite acceptance.
 			N2NChatPlugin.sendInviteAccept(invite.darkPeer, globalIdentifier);
 			//Invite is accepted and so no longer pending.
 			receivedInvites.remove(globalIdentifier);
@@ -148,7 +144,7 @@ public class MainPageToadlet extends Toadlet implements LinkEnabledCallback {
 		        new String[] { "text/javascript", "/n2n-chat/static/js/main-page.js"});
 		HTMLNode content = pn.content;
 
-		if (chatRooms.isEmpty()) {
+		if (chatPlugin.noRooms()) {
 			HTMLNode welcome = addInfoBox(l10n("welcome"), pm, content);
 			welcome.addChild("#", l10n("explain"));
 		}
@@ -157,7 +153,7 @@ public class MainPageToadlet extends Toadlet implements LinkEnabledCallback {
 		HTMLNode roomListing = roomsBox.addChild("ul",
 		        new String[] { "class", "style" },
 		        new String[] { "room-listing", "list-style-type:none;" });
-		for (ChatRoom chatRoom : chatRooms.values()) {
+		for (ChatRoom chatRoom : chatPlugin.getRooms()) {
 			HTMLNode roomEntry = roomListing.addChild("li");
 			roomEntry.addChild("a", "href", DisplayChatToadlet.PATH + "?room=" + chatRoom.getGlobalIdentifier(),
 			        chatRoom.getRoomName());

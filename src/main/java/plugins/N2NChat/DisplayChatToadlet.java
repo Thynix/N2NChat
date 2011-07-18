@@ -20,17 +20,17 @@ import java.util.HashMap;
 
 public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 
-	private HashMap<Long, ChatRoom> chatRooms;
 	private PluginL10n l10n;
 	private Node node;
 	private PluginRespirator pluginRespirator;
+	private N2NChatPlugin chatPlugin;
 
 	public DisplayChatToadlet(N2NChatPlugin chatPlugin) {
 		super(chatPlugin.pluginRespirator().getHLSimpleClient());
-		this.chatRooms = chatPlugin.chatRooms;
 		this.l10n = chatPlugin.l10n();
 		this.pluginRespirator = chatPlugin.pluginRespirator();
 		this.node = pluginRespirator.getNode();
+		this.chatPlugin = chatPlugin;
 	}
 
 	public static String PATH = "/n2n-chat/display/";
@@ -50,7 +50,7 @@ public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 		if (!request.isPartSet("room") || request.getPartAsStringFailsafe("room", 4096).isEmpty()) {
 			super.sendErrorPage(ctx, 500, "Invalid room", "A room was not properly requested.");
 			return;
-		} else if (!chatRooms.containsKey(Long.valueOf(request.getPartAsStringFailsafe("room", 4096)))) {
+		} else if (!chatPlugin.roomExists(Long.valueOf(request.getPartAsStringFailsafe("room", 4096)))) {
 			super.sendErrorPage(ctx, 500, "Nonexistent room", "The requested room does not exist.");
 			return;
 		}
@@ -65,7 +65,7 @@ public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 		}
 
 		if (request.isPartSet("message") && !request.getPartAsStringFailsafe("message", 4096).isEmpty()) {
-			chatRooms.get(globalIdentifier).sendOwnMessage(request.getPartAsStringFailsafe("message", 4096));
+			chatPlugin.getRoom(globalIdentifier).sendOwnMessage(request.getPartAsStringFailsafe("message", 4096));
 			writeHTMLReply(ctx, 204, "No Content", "");
 			return;
 		} else if (request.isPartSet("invite") && !request.getPartAsStringFailsafe("invite", 4096).isEmpty()) {
@@ -83,7 +83,7 @@ public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 					super.sendErrorPage(ctx, 500, "Invalid public key hash", "A peer with that hash does not exist.");
 					return;
 				}
-				ChatRoom chatRoom = chatRooms.get(globalIdentifier);
+				ChatRoom chatRoom = chatPlugin.getRoom(globalIdentifier);
 				//Invitation already exists, retract it.
 				if (chatRoom.inviteSentTo(new ByteArray(pubKeyHash))) {
 					chatRoom.sendInviteRetract(peerNode);
@@ -122,7 +122,7 @@ public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 
 		long globalIdentifier = Long.valueOf(request.getParam("room"));
 		//Ensure the chat room is valid.
-		ChatRoom chatRoom = chatRooms.get(globalIdentifier);
+		ChatRoom chatRoom = chatPlugin.getRoom(globalIdentifier);
 		if (chatRoom == null) {
 			//TODO: localization
 			super.sendErrorPage(ctx, 500, "Invalid Room", "This node is not present in the specified room.");
