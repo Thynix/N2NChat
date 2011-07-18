@@ -143,12 +143,15 @@ public class ChatRoom {
 			Participant newParticipant = participants.get(new ByteArray(newParticipantPeer.getPubKeyHash()));
 			for (ByteArray pubKeyHash : participants.keySet()) {
 				Participant existingParticipant = participants.get(pubKeyHash);
-				if (!pubKeyHash.equals(new ByteArray(newParticipantPeer.getPubKeyHash())) &&
-				        existingParticipant.directlyConnected) {
-					//Send all other participants a join for the new participant.
-					sendJoin(existingParticipant.peerNode, newParticipant, true);
+				if (!pubKeyHash.equals(new ByteArray(newParticipantPeer.getPubKeyHash()))) {
 					//Send the new participant silent joins for all other participants.
 					sendJoin(newParticipantPeer, existingParticipant, false);
+					if (existingParticipant.directlyConnected) {
+						//Send all directly connected participants a join for the new participant.
+						//They should in turn echo the join to everyone they are directly
+						//connected to.
+						sendJoin(existingParticipant.peerNode, newParticipant, true);
+					}
 				}
 			}
 			return true;
