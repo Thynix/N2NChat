@@ -218,9 +218,9 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 		pluginRespirator().getPageMaker().removeNavigationCategory("plugin.menuName");
 
 		//Unregister pages
-		pluginRespirator.getToadletContainer().unregister(mpt);
-		pluginRespirator.getToadletContainer().unregister(displayChatToadlet);
-		pluginRespirator.getToadletContainer().unregister(srt);
+		tc.unregister(mpt);
+		tc.unregister(displayChatToadlet);
+		tc.unregister(srt);
 	}
 
 	//
