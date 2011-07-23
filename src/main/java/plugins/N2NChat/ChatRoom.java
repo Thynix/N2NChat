@@ -267,7 +267,8 @@ public class ChatRoom {
 			//Remove from the room any other participants the leaving node routed for.
 			if (removePubKeyHash.equals(new ByteArray(participant.peerNode.getPubKeyHash()))) {
 				addLine(participant, now, null, " "+l10n("lostConnection"));
-				participants.remove(participant.pubKeyHash);
+				participantCollection.remove(participant);
+				Logger.minor(this, participant.name+" lost connection because they were connected through "+removedParticipant.name);
 			//Send this disconnect to all participants this node is connected to, provided it didn't deliver this.
 			//pubKeyHash will be equal to the peerNode.getPubKeyHash() because it's locally invited
 			//and thus directly connected.
