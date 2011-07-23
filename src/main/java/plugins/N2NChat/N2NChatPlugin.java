@@ -120,7 +120,7 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 	private StaticResourceToadlet srt;
 
 	/**l10n key for chat menu name */
-	private static final String chatMenu = "plugin.menuName";
+	private static final String chatMenu = "N2NChatPlugin.menuName";
 
 	//
 	// ACCESSORS
@@ -192,8 +192,8 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 
 		//TODO: Need to store and retrieve config somehow.
 		mpt = new MainPageToadlet(this);
-		pr.getPageMaker().addNavigationCategory(mpt.path(), "plugin.menuName", "plugin.menuName.tooltip", this);
-		tc.register(mpt, chatMenu, mpt.path(), true, "plugin.mainPage", "plugin.mainPage.tooltip", false, mpt);
+		pr.getPageMaker().addNavigationCategory(mpt.path(), chatMenu, "N2NChatPlugin.menuName.tooltip", this);
+		tc.register(mpt, chatMenu, mpt.path(), true, "N2NChatPlugin.mainPage", "N2NChatPlugin.mainPage.tooltip", false, mpt);
 		tc.register(mpt, null, mpt.path(), true, false);
 
 		displayChatToadlet = new DisplayChatToadlet(this);
@@ -215,7 +215,7 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 		}
 
 		//Unregister category
-		pluginRespirator().getPageMaker().removeNavigationCategory("plugin.menuName");
+		pluginRespirator().getPageMaker().removeNavigationCategory(chatMenu);
 
 		//Unregister pages
 		tc.unregister(mpt);
@@ -399,7 +399,7 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 
 			//Check that the requested room exists.
 			if (!chatRooms.containsKey(globalIdentifier)) {
-				Logger.error(this, l10n.getBase().getString("plugin.nonexistentRoom",
+				Logger.error(this, l10n.getBase().getString("N2NChatPlugin.nonexistentRoom",
 				        new String[] { "globalIdentifier", "type" },
 				        new String[] { String.valueOf(globalIdentifier), String.valueOf(type) }));
 				return;
