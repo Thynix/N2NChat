@@ -105,55 +105,55 @@ The base identifier (``n2ntype`` to ``sendNodeToNodeMessage()``) used to registe
     <th>Field</th><th>Purpose</th>
   </tr>
   <tr>
-    <td>``type``</td><td>Type of chat message,</td>
+    <td>type</td><td>Type of chat message,</td>
   </tr>
   <tr>
-    <td>``globalIdentifier``</td><td>Which room - hopefully-unique identifier.</td>
+    <td>globalIdentifier</td><td>Which room - hopefully-unique identifier.</td>
   </tr>
   <tr>
-    <td>``pubKeyHash``</td><td>Which participant.</td>
+    <td>pubKeyHash</td><td>Which participant.</td>
   </tr>
   <tr>
-    <td>``username``</td><td>Participant's username.</td>
+    <td>username</td><td>Participant's username.</td>
   </tr>
   <tr>
-    <td>``roomName``</td><td>ChatRoom human-readable name.</td>
+    <td>roomName</td><td>ChatRoom human-readable name.</td>
   </tr>
   <tr>
-    <td>``timeComposed``</td><td>Time the message was composed.</td>
+    <td>timeComposed</td><td>Time the message was composed.</td>
   </tr>
   <tr>
-    <td>``text``</td><td>Text of the chat message.</td>
+    <td>text</td><td>Text of the chat message.</td>
   </tr>
   <tr>
-    <td>``displayJoin``</td><td>Whether a join message should be displayed.</td>
+    <td>displayJoin</td><td>Whether a join message should be displayed.</td>
   </tr>
 </table>
 
 <table>
   <tr>
-    <th>Message</th><th>``type``</th><th>``globalIdentifier``</th><th>``pubKeyHash``</th><th>``username``</th><th>``roomName``</th><th>``timeComposed``</th><th>``text``</th><th>``displayJoin``</th>
+    <th>Message</th><th>type</th><th>globalIdentifier</th><th>pubKeyHash</th><th>username</th><th>roomName</th><th>timeComposed</th><th>text</th><th>displayJoin</th>
   </tr>
   <tr>
-    <td>``MESSAGE``</td><td>1</td><td>✓</td><td>✓</td><td></td><td></td><td>✓</td><td>✓</td><td></td>
+    <td>MESSAGE</td><td>1</td><td>✓</td><td>✓</td><td></td><td></td><td>✓</td><td>✓</td><td></td>
   </tr>
   <tr>
-    <td>``OFFER_INVITE``</td><td>2</td><td>✓</td><td></td><td>✓</td><td>✓</td><td></td><td></td><td></td>
+    <td>OFFER_INVITE</td><td>2</td><td>✓</td><td></td><td>✓</td><td>✓</td><td></td><td></td><td></td>
   </tr>
   <tr>
-    <td>``RETRACT_INVITE``</td><td>3</td><td>✓</td><td></td><td></td><td></td><td></td><td></td><td></td>
+    <td>RETRACT_INVITE</td><td>3</td><td>✓</td><td></td><td></td><td></td><td></td><td></td><td></td>
   </tr>
   <tr>
-    <td>``ACCEPT_INVITE``</td><td>4</td><td>✓</td><td></td><td></td><td></td><td></td><td></td><td></td>
+    <td>ACCEPT_INVITE</td><td>4</td><td>✓</td><td></td><td></td><td></td><td></td><td></td><td></td>
   </tr>
   <tr>
-    <td>``REJECT_INVITE``</td><td>5</td><td>✓</td><td></td><td></td><td></td><td></td><td></td><td></td>
+    <td>REJECT_INVITE</td><td>5</td><td>✓</td><td></td><td></td><td></td><td></td><td></td><td></td>
   </tr>
   <tr>
-    <td>``JOIN``</td><td>6</td><td>✓</td><td>✓</td><td>✓</td><td></td><td></td><td></td><td>✓</td>
+    <td>JOIN</td><td>6</td><td>✓</td><td>✓</td><td>✓</td><td></td><td></td><td></td><td>✓</td>
   </tr>
   <tr>
-    <td>``LEAVE``</td><td>7</td><td>✓</td><td>✓</td><td></td><td></td><td></td><td></td><td></td>
+    <td>LEAVE</td><td>7</td><td>✓</td><td>✓</td><td></td><td></td><td></td><td></td><td></td>
   </tr>
 </table>
 
