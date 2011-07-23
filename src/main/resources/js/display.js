@@ -48,8 +48,6 @@ $(document).ready(function() {
       //Only update if there was a change.
       if (jqXHR.status == 200) {
         participantsList.html(data);
-        //There was a change; perhaps someone accepted a pending invite and the drop-down changed.
-        refreshInviteDropDown();
       }
     });
   }
@@ -58,9 +56,6 @@ $(document).ready(function() {
     $.get('/n2n-chat/display/', { 'room' : room, 'inviteDropDown' : 'only' }, function(data, status, jqXHR) {
       if (jqXHR.status == 200) {
         inviteContainer.html(data);
-        //The invite drop-down changed, which means someone accepted an invitation or disconnected,
-        //so the participants list must have changed.
-        refreshParticipantsList();
       }
     });
   }
