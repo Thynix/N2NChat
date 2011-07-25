@@ -13,9 +13,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package plugins.N2NChat;
+package plugins.N2NChat.core;
 
-import freenet.client.filter.ContentFilter;
 import freenet.clients.http.*;
 import freenet.l10n.BaseL10n.LANGUAGE;
 import freenet.l10n.PluginL10n;
@@ -28,16 +27,13 @@ import freenet.support.Base64;
 import freenet.support.IllegalBase64Exception;
 import freenet.support.Logger;
 import freenet.support.SimpleFieldSet;
-import freenet.support.api.HTTPRequest;
-import freenet.support.io.Closer;
 
-import javax.xml.soap.Node;
-import java.io.ByteArrayOutputStream;
+import plugins.N2NChat.webui.DisplayChatToadlet;
+import plugins.N2NChat.webui.MainPageToadlet;
+import plugins.N2NChat.webui.StaticResourceToadlet;
+
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
-import java.net.URLConnection;
-import java.net.URI;
 import java.text.SimpleDateFormat;
 import java.util.Collection;
 import java.util.Date;

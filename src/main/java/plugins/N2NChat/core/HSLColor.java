@@ -1,4 +1,4 @@
-package plugins.N2NChat;
+package plugins.N2NChat.core;
 
 import java.awt.*;
 // Code from http://tips4java.wordpress.com/2009/07/05/hsl-color/

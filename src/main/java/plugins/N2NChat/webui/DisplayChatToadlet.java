@@ -1,4 +1,4 @@
-package plugins.N2NChat;
+package plugins.N2NChat.webui;
 
 import freenet.clients.http.*;
 import freenet.l10n.NodeL10n;
@@ -12,11 +12,14 @@ import freenet.support.IllegalBase64Exception;
 import freenet.support.MultiValueTable;
 import freenet.support.api.HTTPRequest;
 
+import plugins.N2NChat.core.ByteArray;
+import plugins.N2NChat.core.ChatRoom;
+import plugins.N2NChat.core.N2NChatPlugin;
+
 import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 
 public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 

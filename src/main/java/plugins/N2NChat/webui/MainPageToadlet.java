@@ -1,15 +1,17 @@
-package plugins.N2NChat;
+package plugins.N2NChat.webui;
 
 import freenet.clients.http.*;
 import freenet.l10n.NodeL10n;
 import freenet.l10n.PluginL10n;
-import freenet.node.DarknetPeerNode;
 import freenet.node.Node;
 import freenet.node.NodeClientCore;
 import freenet.pluginmanager.PluginRespirator;
 import freenet.support.HTMLNode;
 import freenet.support.MultiValueTable;
 import freenet.support.api.HTTPRequest;
+
+import plugins.N2NChat.core.N2NChatPlugin;
+import plugins.N2NChat.core.ChatRoom;
 
 import java.io.IOException;
 import java.net.URI;

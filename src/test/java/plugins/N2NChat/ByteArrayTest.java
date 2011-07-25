@@ -1,4 +1,4 @@
-package plugins.N2NChat;
+package plugins.N2NChat.core;
 
 import junit.framework.TestCase;
 

@@ -1,4 +1,4 @@
-package plugins.N2NChat;
+package plugins.N2NChat.core;
 
 import freenet.l10n.PluginL10n;
 import freenet.node.DarknetPeerNode;
@@ -7,7 +7,7 @@ import freenet.support.HTMLNode;
 import freenet.support.Logger;
 import freenet.support.SimpleFieldSet;
 
-import java.awt.*;
+import java.awt.Color;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -15,7 +15,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.List;
 
 /**
  * The ChatRoom class keeps track of what has been said in a chat room, parses new messages, formats them, and is

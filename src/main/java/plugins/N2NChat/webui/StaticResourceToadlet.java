@@ -1,4 +1,4 @@
-package plugins.N2NChat;
+package plugins.N2NChat.webui;
 
 import freenet.client.filter.ContentFilter;
 import freenet.clients.http.RedirectException;
@@ -10,11 +10,9 @@ import freenet.support.api.HTTPRequest;
 import freenet.support.io.Closer;
 import org.apache.commons.io.IOUtils;
 
-import javax.tools.JavaCompiler;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.FileNameMap;
 import java.net.URI;
 import java.net.URLConnection;
 
