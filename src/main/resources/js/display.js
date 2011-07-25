@@ -53,8 +53,6 @@ $(document).ready(function() {
 
     //The AJAX requests all return 200 only if there was a change. If cache is not false, some browsers (such as Firefox)
     //will treat the cache hit as a 200, which breaks things as it will load a stale, cached copy as an update.
-
-
     function refreshParticipantsList() {
         $.ajax({
             url: '/n2n-chat/display/',
@@ -107,8 +105,6 @@ $(document).ready(function() {
     }
 
     //Scroll to new bottom if at the bottom before loading new data.
-
-
     function messagePaneHandler(data, status, jqXHR) {
         if (jqXHR.status == 200) {
             var scroll = atBottom();
