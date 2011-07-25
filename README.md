@@ -1,9 +1,8 @@
 # Darknet Chat Plugin
 
-It needs a better name, but Darknet Chat Plugin is a chat plugin for [Freenet](http://www.freenetproject.org) that allows
-communication between groups of people that are connected as friends on Freenet. Its intent is to allow real-time chat
-rooms with an arbitrary number of participants. Anyone that connects to a chat room can invite anyone else they are
-connected to.
+Darknet Chat Plugin is a chat plugin for [Freenet](http://www.freenetproject.org) that allows communication between
+groups of people that are connected as friends on Freenet. Its intent is to allow real-time chat rooms with an arbitrary
+number of participants. Anyone that connects to a chat room can invite anyone else they are connected to.
 
 ## Building
 
