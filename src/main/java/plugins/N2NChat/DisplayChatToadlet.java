@@ -150,8 +150,7 @@ public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 		} else if (request.isParameterSet("inviteDropDown")) {
 			ArrayList<DarknetPeerNode> peers = chatRoom.invitablePeers(node.getDarknetConnections(), true);
 			if (peers != null) {
-				HTMLNode dropDown = generateInviteDropdown(ctx, peers, globalIdentifier);
-				writeHTMLReply(ctx, 200, "OK", null, dropDown.generate());
+				writeHTMLReply(ctx, 200, "OK", null, generateInviteOptions(ctx, peers));
 			} else {
 				writeHTMLReply(ctx, 304, "Not Modified", "");
 			}
@@ -174,12 +173,9 @@ public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 		pn.content.addChild("div", "id", "participants-list").addChild(chatRoom.getParticipantListing(false));
 
 		//Drop-down to invite those not already participating, or retract an existing invitation.
-		//Don't display if all connected darknet peers are already participating.
 		ArrayList<DarknetPeerNode> invitablePeers = chatRoom.invitablePeers(node.getDarknetConnections(), false);
 		HTMLNode inviteContainer = pn.content.addChild("div", "id", "invite-container");
-		if (invitablePeers.size() > 0) {
-			inviteContainer.addChild(generateInviteDropdown(ctx, invitablePeers, globalIdentifier));
-		}
+		inviteContainer.addChild(generateInviteDropdown(ctx, invitablePeers, globalIdentifier));
 
 		//Add message sending area.
 		HTMLNode messageDiv = pn.content.addChild("div", "id", "message-form");
@@ -191,19 +187,39 @@ public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 		writeHTMLReply(ctx, 200, "OK", null, pn.outer.generate());
 	}
 
+	private String generateInviteOptions(ToadletContext ctx, ArrayList<DarknetPeerNode> invitablePeers) {
+		StringBuilder options = new StringBuilder();
+		for (DarknetPeerNode peerNode : invitablePeers) {
+			options.append("<option value=\"").append(Base64.encode(peerNode.getPubKeyHash())).
+			        append("\">").append(peerNode.getName()).append("</option>");
+		}
+		return options.toString();
+	}
+
+	/**
+	 * Generates a drop-down list of invitable peers.
+	 * @param ctx ToadletContext used to generate the form.
+	 * @param invitablePeers Peers to put in the list.
+	 * @param globalIdentifier Global identifier of the room.
+	 * @return A drop-down list of invitable peers with a submit button.
+	 */
 	private HTMLNode generateInviteDropdown(ToadletContext ctx, ArrayList<DarknetPeerNode> invitablePeers, long globalIdentifier) {
 		HTMLNode inviteDiv = new HTMLNode("div", "id", "invite-form");
 		HTMLNode inviteForm = ctx.addFormChild(inviteDiv, path(), "invite-participant");
-		inviteForm.addChild("input", new String[] { "type", "name", "value" },
-			new String[] { "hidden", "room", String.valueOf(globalIdentifier) });
+		inviteForm.addChild("input",
+		        new String[] { "type", "name", "value" },
+		        new String[] { "hidden", "room", String.valueOf(globalIdentifier) });
+
 		HTMLNode dropDown = inviteForm.addChild("select", "name", "invite");
+
 		for (DarknetPeerNode peerNode : invitablePeers) {
-			dropDown.addChild("option", "value", Base64.encode(peerNode.getPubKeyHash()),
-				peerNode.getName());
+			dropDown.addChild("option", "value", Base64.encode(peerNode.getPubKeyHash()), peerNode.getName());
 		}
-		inviteForm.addChild("input", new String[] { "type", "name", "value" },
-			new String[] { "submit", "send-invite",
-				l10n("(un)invite")});
+
+		inviteForm.addChild("input",
+		        new String[] { "type", "name", "value" },
+		        new String[] { "submit", "send-invite",
+		                l10n("(un)invite")});
 
 		return inviteDiv;
 	}

@@ -100,7 +100,7 @@ $(document).ready(function() {
 
     function inviteDropDownHandler(data, status, jqXHR) {
         if (jqXHR.status == 200) {
-            inviteContainer.html(data);
+            inviteSelect.html(data);
         }
     }
 
