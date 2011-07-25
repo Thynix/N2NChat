@@ -33,22 +33,24 @@ $(document).ready(function() {
     $('[name="send-invite"]').click(function(event) {
         //Suppress double-submit.
         event.preventDefault();
-        var selectedPeer = inviteSelect.val();
-        $.post('/n2n-chat/display/', {
-            'room': room,
-            'invite': selectedPeer,
-            'formPassword': formPassword
-        }, function() {
-            var numberOfPeers = $('[name="invite"] option').size();
-            //If going to go off the end, wrap to the beginning.
-            if (inviteSelect[0].selectedIndex + 1 == numberOfPeers) {
-                inviteSelect[0].selectedIndex = 0;
-            } else {
-                inviteSelect[0].selectedIndex++;
-            }
-            //Someone was invited or uninvited, so reflect that immediately in the participants pane.
-            refreshParticipantsList();
-        });
+        if ($('[name="invite"] option').size() > 0) {
+            var selectedPeer = inviteSelect.val();
+            $.post('/n2n-chat/display/', {
+                'room': room,
+                'invite': selectedPeer,
+                'formPassword': formPassword
+            }, function() {
+                var numberOfPeers = $('[name="invite"] option').size();
+                //If going to go off the end, wrap to the beginning.
+                if (inviteSelect[0].selectedIndex + 1 == numberOfPeers) {
+                    inviteSelect[0].selectedIndex = 0;
+                } else {
+                    inviteSelect[0].selectedIndex++;
+                }
+                //Someone was invited or uninvited, so reflect that immediately in the participants pane.
+                refreshParticipantsList();
+            });
+        }
     });
 
     //The AJAX requests all return 200 only if there was a change. If cache is not false, some browsers (such as Firefox)
