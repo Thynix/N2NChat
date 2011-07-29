@@ -1,6 +1,7 @@
 package plugins.N2NChat.webui;
 
 import freenet.client.filter.ContentFilter;
+import freenet.client.DefaultMIMETypes;
 import freenet.clients.http.RedirectException;
 import freenet.clients.http.Toadlet;
 import freenet.clients.http.ToadletContext;
@@ -45,11 +46,11 @@ public class StaticResourceToadlet extends Toadlet {
 		try {
 			inputURL.setUseCaches(false);
 			inputStream = inputURL.getInputStream();
-			String mimeType = getMimeType(fileName);
+			String mimeType = DefaultMIMETypes.guessMIMEType(fileName,false);
 			if (inputStream != null) {
 				//TODO: What can go through the filter?
 				//Can filter.
-				if (fileName.endsWith(".css")) {
+				if (mimeType.equals("text/css")) {
 					ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 					ContentFilter.filter(inputStream, outputStream, mimeType, uri, null, null, null);
 					output = outputStream.toByteArray();
@@ -63,17 +64,4 @@ public class StaticResourceToadlet extends Toadlet {
 			Closer.close(inputStream);
 		}
 	}
-
-	private static String getMimeType(String URL) {
-		//TODO: How to properly get MIME Type?
-		//FileNameMap fileNameMap = URLConnection.getFileNameMap();
-		//return fileNameMap.getContentTypeFor(URL);
-		if (URL.endsWith(".css")) {
-			return "text/css";
-		} else if (URL.endsWith(".js")) {
-			return "text/javascript";
-		}
-		return "unknown";
-	}
 }
-
