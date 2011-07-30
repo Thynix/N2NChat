@@ -181,7 +181,7 @@ public class MainPageToadlet extends Toadlet implements LinkEnabledCallback {
 		        new String[] { "submit", "create-chat", l10n("create") });
 		//warn user of max room-name length        
 		if(hasError)
-		     {createChatForm.addChild("#","Room name can be at most 255 characters");}        
+		     {createChatForm.addChild("#",l10n("tooLong"));}        
 
 		//List received invitations.
 		HTMLNode invitationsBox = addInfoBox(l10n("pendingInvitations"), pm, content);
