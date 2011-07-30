@@ -91,6 +91,7 @@ public class MainPageToadlet extends Toadlet implements LinkEnabledCallback {
 			}
 			String userName = node.getMyName();
 			chatPlugin.addChatRoom(globalIdentifier, roomName, userName);
+                        hasError = false; //no reason to have this error when they enter a valid room name
 		}
 		handleMethodGET(uri, request, ctx);
 	}
