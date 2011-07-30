@@ -34,6 +34,7 @@ public class MainPageToadlet extends Toadlet implements LinkEnabledCallback {
 	private PluginL10n l10n;
 	private HTMLNode invitationTable;
 	private boolean updatedInvites;
+	private boolean hasError;
 	private N2NChatPlugin chatPlugin;
 
 	public MainPageToadlet(N2NChatPlugin chatPlugin) {
@@ -78,11 +79,16 @@ public class MainPageToadlet extends Toadlet implements LinkEnabledCallback {
 			chatPlugin.removeChatRoom(globalIdentifier);
 		}
 
-		//TODO: Tell user about the maximum length of the room name instead of silently truncating.
 		if (request.isPartSet("new-room-name") &&
 			        !request.getPartAsStringFailsafe("new-room-name", roomNameTruncate).isEmpty()) {
 			long globalIdentifier = node.random.nextLong();
-			String roomName = request.getPartAsStringFailsafe("new-room-name", roomNameTruncate);
+			String roomName = request.getPartAsStringFailsafe("new-room-name", roomNameTruncate+1);
+			if(roomName.length()>roomNameTruncate)
+			{
+     			hasError = true;
+     			writeTemporaryRedirect(ctx,"too long","/n2n-chat/main-page/");
+     			return;
+			}
 			String userName = node.getMyName();
 			chatPlugin.addChatRoom(globalIdentifier, roomName, userName);
 		}
@@ -173,6 +179,9 @@ public class MainPageToadlet extends Toadlet implements LinkEnabledCallback {
 		        new String[] { "text", "new-room-name", l10n("newRoom") });
 		createChatForm.addChild("input", new String[] { "type", "name", "value"},
 		        new String[] { "submit", "create-chat", l10n("create") });
+		//warn user of max room-name length        
+		if(hasError){
+		   createChatForm.addChild("#",l10n("tooLong"));}        
 
 		//List received invitations.
 		HTMLNode invitationsBox = addInfoBox(l10n("pendingInvitations"), pm, content);
