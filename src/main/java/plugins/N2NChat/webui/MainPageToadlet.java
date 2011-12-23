@@ -135,8 +135,8 @@ public class MainPageToadlet extends Toadlet implements LinkEnabledCallback {
 		}
 
 		//List current chat rooms
-		PageNode pn = ctx.getPageMaker().getPageNode(l10n("chatRoomListing"), ctx);
 		PageMaker pm = ctx.getPageMaker();
+		PageNode pn = pm.getPageNode(l10n("chatRoomListing"), ctx);
 		pn.addCustomStyleSheet("/n2n-chat/static/css/main-page.css");
 		pn.headNode.addChild("script",
 		        new String[] { "type", "src" },
