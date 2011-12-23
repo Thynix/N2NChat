@@ -6,15 +6,31 @@ number of participants. Anyone that connects to a chat room can invite anyone el
 
 ## Building
 
-Darknet Chat Plugin uses Apache Maven to build. It currently requires
-[Fred 0.7.5.1387](http://downloads.freenetproject.org/alpha/freenet-build01387.jar),
-[Freenet-ext 29](http://downloads.freenetproject.org/alpha/freenet-ext.jar), and Apache Commons
-[commons-io 2.0.1](http://commons.apache.org/io/download_io.cgi). Once you have these dependancies, you can install
- them in Maven by running
+Darknet Chat Plugin uses Apache Maven to build.
 
-    mvn install:install-file -Dfile=freenet.jar -DgroupId=org.freenetproject -DartifactId=fred -Dversion=0.7.5.1387 -Dpackaging=jar
+#### Maven plugins:
+
+* junit
+* maven-compiler-plugin
+* maven-jar-plugin
+* maven-assembly-plugin
+* maven-javadoc-plugin
+
+To install on Debian Squeeze:
+
+   apt-get install maven2 junit libmaven-compiler-plugin-java libmaven-jar-plugin-java libmaven-assembly-plugin-java libmaven-javadoc-plugin-java
+
+#### Plugin dependencies:
+
+* [Fred 0.7.5.1405](http://downloads.freenetproject.org/alpha/freenet-build01405.jar)
+* [Freenet-ext 29](http://downloads.freenetproject.org/alpha/freenet-ext.jar)
+* Apache Commons [commons-io 2.1](http://commons.apache.org/io/download_io.cgi)
+
+Install them in Maven by running:
+
+    mvn install:install-file -Dfile=freenet.jar -DgroupId=org.freenetproject -DartifactId=fred -Dversion=0.7.5.1405 -Dpackaging=jar
     mvn install:install-file -Dfile=freenet-ext.jar -DgroupId=org.freenetproject -DartifactId=freenet-ext -Dversion=29 -Dpackaging=jar
-    mvn install:install-file -Dfile=commons-io-2.0.1.jar -DgroupId=org.apache.commons -DartifactId=commons-io -Dversion=2.0.1 -Dpackaging=jar
+    mvn install:install-file -Dfile=commons-io-2.1.jar -DgroupId=org.apache.commons -DartifactId=commons-io -Dversion=2.1 -Dpackaging=jar
 
 Now you can build the package with ``mvn package`` and generate the Javadocs with ``mvn javadoc:javadoc``.
 

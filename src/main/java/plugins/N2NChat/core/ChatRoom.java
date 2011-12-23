@@ -16,7 +16,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 
-/**
+/** 
  * The ChatRoom class keeps track of what has been said in a chat room, parses new messages, formats them, and is
  * responsible for system messages such as joins, leaves, and day changes.
  */
@@ -397,12 +397,7 @@ public class ChatRoom {
 	 * @return True if a participant in the room has that name, false if not.
 	 */
 	public boolean nameExists(String name) {
-		for (Participant participant : participants.values()) {
-			if (participant.name.equals(name)) {
-				return true;
-			}
-		}
-		return false;
+          return participants.containsKey(name);
 	}
 
 	/**
@@ -492,7 +487,7 @@ public class ChatRoom {
 				suffix = " ("+l10n("you")+')';
 			} else {
 				//It's an invite.TODO: Include which peer this is? It'll only really be an issue
-				//TODO: if usernames can differ from node nicknames.
+				//if usernames can differ from node nicknames.
 				suffix = " ("+l10n("invitePending")+')';
 			}
 
