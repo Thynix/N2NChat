@@ -4,7 +4,7 @@ package plugins.N2NChat.core.message;
  * Identifiers for the message types that can be sent and received.
  */
 public enum Type {
-	MESSAGE,       //A message from a user to the other participants.
+	MESSAGE,       //A chat message from a user to the other participants.
 	OFFER_INVITE,  //An invite offer to another room.
 	RETRACT_INVITE,//A retraction of an invite offer.
 	ACCEPT_INVITE, //Acceptance of an invitation.

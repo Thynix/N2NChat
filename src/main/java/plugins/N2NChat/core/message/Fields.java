@@ -55,7 +55,14 @@ public class Fields {
 	 * Gets
 	 */
 
-	public static Type getType(SimpleFieldSet fieldSet) {
+	/**
+	 * Reads the message type field.
+	 * @param fieldSet to read the type from.
+	 * @return read type
+	 * @throws IllegalArgumentException type is malformed
+	 * @throws FSParseException field missing
+	 */
+	public static Type getType(SimpleFieldSet fieldSet) throws IllegalArgumentException, FSParseException {
 		return Type.valueOf(fieldSet.get(typeKey));
 	}
 
