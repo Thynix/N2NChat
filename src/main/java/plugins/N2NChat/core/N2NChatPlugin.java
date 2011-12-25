@@ -23,11 +23,11 @@ import freenet.node.FSParseException;
 import freenet.node.NodeToNodeMessageListener;
 import freenet.node.PeerNode;
 import freenet.pluginmanager.*;
-import freenet.support.Base64;
 import freenet.support.IllegalBase64Exception;
 import freenet.support.Logger;
 import freenet.support.SimpleFieldSet;
 
+import plugins.N2NChat.core.message.*;
 import plugins.N2NChat.webui.DisplayChatToadlet;
 import plugins.N2NChat.webui.MainPageToadlet;
 import plugins.N2NChat.webui.StaticResourceToadlet;
@@ -36,7 +36,6 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.text.SimpleDateFormat;
 import java.util.Collection;
-import java.util.Date;
 import java.util.HashMap;
 
 /**
@@ -333,9 +332,9 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 			}
 			DarknetPeerNode darkSource = (DarknetPeerNode) source;
 			freenet.support.Logger.normal(this, "Received N2N chat from " +darkSource.getName()+" (" + darkSource.getPeer() + ")");
-			SimpleFieldSet fs = null;
+			SimpleFieldSet fieldSet; //= null
 			try {
-				fs = new SimpleFieldSet(new String(data, "UTF-8"), false, true);
+				fieldSet = new SimpleFieldSet(new String(data, "UTF-8"), false, true);
 			} catch (UnsupportedEncodingException e) {
 				throw new Error("Impossible: JVM doesn't support UTF-8: " + e, e);
 			} catch (IOException e) {
@@ -343,129 +342,56 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 				return;
 			}
 
-			/*Fields are parsed in the order that they are needed, with those types that need the fewest
-			pieces of information from fields checked for first.
-			 */
-
-			//Get global identifier.
-			long globalIdentifier;
+			Type messageType;
 			try {
-				globalIdentifier = fs.getLong("globalIdentifier");
-			} catch (FSParseException e) {
-				//Could not parse global identifier. Dropping.
-				//TODO: Add localized error message.
-				Logger.error(this, "Failed to parse global identifier from " + ((DarknetPeerNode) source).getName() + '.');
-				return;
-			}
-
-			//We already know it's a chat message, but what kind?
-			try {
-				type = fs.getInt("type");
-			} catch (FSParseException e) {
-				Logger.error(this, "Failed to read message type in message about room "+globalIdentifier);
-				return;
-			}
-
-			/*/A darknet peer offered this node an invite. Add it to the list of offered invites to allow
-			the user to accept or reject it. If there is an existing invite for this room, it is replaced.
-			 */
-			if (type == OFFER_INVITE) {
-				try {
-					String username = new String(Base64.decode(fs.get("username")));
-					String roomName = new String(Base64.decode(fs.get("roomName")));
-					receivedInvites.put(globalIdentifier, new chatInvite(username, roomName,
-					        darkSource));
-					Logger.minor(this, "Received invitation offer from "+darkSource.getName()+
-					        " to room '"+roomName+"' ("+globalIdentifier+") with username '"+username+"'");
-					mpt.updateInvitationTable();
-				} catch (IllegalBase64Exception e) {
-					Logger.error(this, "Invalid base64 encoding on user/room name", e);
+				messageType = Fields.getType(fieldSet);
+				switch (messageType) {
+					case MESSAGE:
+						Message message = new Message(fieldSet);
+						chatRooms.get(message.globalIdentifier)
+						         .receiveMessage(message.pubKeyHash, message.timeComposed,
+						               new ByteArray(darkSource.getPubKeyHash()), message.text);
+						break;
+					case OFFER_INVITE:
+						OfferInvite offerInvite = new OfferInvite(fieldSet);
+						receivedInvites.put(offerInvite.globalIdentifier,
+						         new chatInvite(offerInvite.username, offerInvite.roomName, darkSource));
+						mpt.updateInvitationTable();
+						break;
+					case RETRACT_INVITE:
+						RetractInvite retractInvite = new RetractInvite(fieldSet);
+						receivedInvites.remove(retractInvite.globalIdentifier);
+						mpt.updateInvitationTable();
+						break;
+					case ACCEPT_INVITE:
+						AcceptInvite acceptInvite = new AcceptInvite(fieldSet);
+						chatRooms.get(acceptInvite.globalIdentifier).receiveInviteAccept(darkSource);
+						break;
+					case REJECT_INVITE:
+						RejectInvite rejectInvite = new RejectInvite(fieldSet);
+						chatRooms.get(rejectInvite.globalIdentifier).receiveInviteReject(darkSource);
+						break;
+					case JOIN:
+						Join join = new Join(fieldSet);
+						chatRooms.get(join.globalIdentifier)
+						         .joinedParticipant(join.pubKeyHash, join.username, darkSource, join.displayJoin);
+						break;
+					case LEAVE:
+						Leave leave = new Leave(fieldSet);
+						chatRooms.get(leave.globalIdentifier)
+						         .removeParticipant(leave.pubKeyHash, new ByteArray(darkSource.getPubKeyHash()), false);
+						break;
 				}
-				return;
-			} else if (type == RETRACT_INVITE) {
-				if (receivedInvites.containsKey(globalIdentifier) &&
-				        receivedInvites.get(globalIdentifier).darkPeer == darkSource) {
-					Logger.minor(this, "Received invite retract from"+darkSource.getName()+
-					        " for the invite to room '"+receivedInvites.get(globalIdentifier).roomName+" ("+globalIdentifier+")");
-					receivedInvites.remove(globalIdentifier);
-					mpt.updateInvitationTable();
-				}
-				return;
-			}
-
-			//Check that the requested room exists.
-			if (!chatRooms.containsKey(globalIdentifier)) {
-				Logger.error(this, l10n.getBase().getString("N2NChatPlugin.nonexistentRoom",
-				        new String[] { "globalIdentifier", "type" },
-				        new String[] { String.valueOf(globalIdentifier), String.valueOf(type) }));
-				return;
-			}
-
-			//TODO: Do these need to fire web pushing events?
-
-			//A darknet peer accepted an invite this node offered. Add them to the chat room.
-			if (type == ACCEPT_INVITE) {
-				Logger.minor(this, "Received invite accept for room '"+chatRooms.get(globalIdentifier).getRoomName()+"' (" + globalIdentifier + ") from " + darkSource.getName());
-				chatRooms.get(globalIdentifier).receiveInviteAccept(darkSource);
-				return;
-			//A darknet peer rejected an invite this node offered; remove it from list of pending invites.
-			} else if (type == REJECT_INVITE) {
-				chatRooms.get(globalIdentifier).receiveInviteReject(darkSource);
-				return;
-			}
-
-			//Get identity hash for use in a message, join, or leave.
-			ByteArray pubKeyHash;
-			try {
-				pubKeyHash = new ByteArray(Base64.decode(fs.getString("pubKeyHash")));
 			} catch (FSParseException e) {
-				//pubKeyHash was not included. This means it pertains to the sender.
-				Logger.minor(this, "Public key hash was not included; assuming sender.");
-				pubKeyHash = new ByteArray(darkSource.getPubKeyHash());
+				Logger.error(this, "Message malformed: expected field missing", e);
+			} catch (IllegalArgumentException e) {
+				Logger.error(this, "Message malformed: unrecognized message type", e);
 			} catch (IllegalBase64Exception e) {
-				//Could not parse identity hash. Dropping.
-				//TODO: Add localized, logged error message.
-				Logger.error(this, "Failed to parse public key hash from "+darkSource.getName()+'.');
-				return;
-			}
-
-			//A message was received. Attempt to add the message.
-			if (type == MESSAGE) {
-				try {
-					chatRooms.get(globalIdentifier).receiveMessage(
-					        pubKeyHash,
-					        new Date(fs.getLong("timeComposed")),
-					        new ByteArray(darkSource.getPubKeyHash()),
-					        new String(Base64.decode(fs.get("text"))));
-				} catch (FSParseException e) {
-					//TODO: Add localized, logged error message.
-					Logger.error(this, "Failed to parse date from " + darkSource.getName() + '.');
-				} catch (IllegalBase64Exception e) {
-					Logger.error(this, "Invalid base64 encoding on message text", e);
-				}
-				return;
-			//Someone joined a chat room.
-			} else if (type == JOIN) {
-				try {
-					boolean displayJoin = true;
-					try {
-						displayJoin = fs.getBoolean("displayJoin");
-					} catch (FSParseException e) {
-						Logger.error(this, "Join message did not include whether to display. Defaulting to display.", e);
-					}
-					chatRooms.get(globalIdentifier).joinedParticipant(pubKeyHash,
- 					        new String(Base64.decode(fs.get("username"))), darkSource, displayJoin);
-				} catch (IllegalBase64Exception e) {
-					Logger.error(this, "Invalid base64 encoding on username", e);
-				}
-				return;
-			//Someone left a chat room.
-			} else if (type == LEAVE) {
-				chatRooms.get(globalIdentifier).removeParticipant(pubKeyHash,
-				        new ByteArray(darkSource.getPubKeyHash()), false);
-				return;
-			}
-			Logger.warning(this, "Received chat message of unknown type "+type+" from "+darkSource.getName());
+				Logger.error(this, "Message malformed: invalid base 64 encoding", e);
+			} /*catch (KeyNotFoundException e) {
+			Logger.error(this, l10n.getBase().getString("N2NChatPlugin.nonexistentRoom",
+			        new String[] { "globalIdentifier", "type" },
+			        new String[] { String.valueOf(globalIdentifier), String.valueOf(type) }));*/
 		}
 	};
 }
