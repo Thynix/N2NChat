@@ -342,6 +342,7 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 				return;
 			}
 
+
 			Type messageType;
 			try {
 				messageType = Fields.getType(fieldSet);
@@ -349,8 +350,7 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 					case MESSAGE:
 						Message message = new Message(fieldSet);
 						chatRooms.get(message.globalIdentifier)
-						         .receiveMessage(message.pubKeyHash, message.timeComposed,
-						               new ByteArray(darkSource.getPubKeyHash()), message.text);
+						         .receiveMessage(message, new ByteArray(darkSource.getPubKeyHash()));
 						break;
 					case OFFER_INVITE:
 						OfferInvite offerInvite = new OfferInvite(fieldSet);
@@ -374,12 +374,12 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 					case JOIN:
 						Join join = new Join(fieldSet);
 						chatRooms.get(join.globalIdentifier)
-						         .joinedParticipant(join.pubKeyHash, join.username, darkSource, join.displayJoin);
+						         .joinedParticipant(join, darkSource);
 						break;
 					case LEAVE:
 						Leave leave = new Leave(fieldSet);
 						chatRooms.get(leave.globalIdentifier)
-						         .removeParticipant(leave.pubKeyHash, new ByteArray(darkSource.getPubKeyHash()), false);
+						         .removeParticipant(leave, new ByteArray(darkSource.getPubKeyHash()), false);
 						break;
 				}
 			} catch (FSParseException e) {

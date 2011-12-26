@@ -6,6 +6,7 @@ import freenet.support.Base64;
 import freenet.support.HTMLNode;
 import freenet.support.Logger;
 import freenet.support.SimpleFieldSet;
+import plugins.N2NChat.core.message.*;
 
 import java.awt.Color;
 import java.io.UnsupportedEncodingException;
@@ -160,18 +161,16 @@ public class ChatRoom {
 
 	/**
 	 * Adds a participant that was invited remotely.
-	 * @param joinedPublicKeyHash The public key hash of the new participant.
-	 * @param name The name of the new participant.
+	 * @param join Join message recieved.
 	 * @param routedBy The peer that routed the invite. This peer will be authorized to route all other things
 	 * with regards to this participant.
-	 * @param displayJoin Whether the join should display a message.
 	 * @return True if the participant was added, false otherwise.
 	 */
-	public boolean joinedParticipant(ByteArray joinedPublicKeyHash, String name, DarknetPeerNode routedBy, boolean displayJoin) {
+	public boolean joinedParticipant(Join join, DarknetPeerNode routedBy) {
 		/*TODO: Query directly connected participants for backup routing paths.*/
-		if (addParticipant(joinedPublicKeyHash, name, routedBy, false, displayJoin)) {
-			Participant newParticipant = participants.get(joinedPublicKeyHash);
-			Logger.minor(this, "Received join for "+newParticipant.name+" from "+routedBy.getName()+" in room '"+roomName+"' ("+globalIdentifier+") displayJoin="+displayJoin);
+		if (addParticipant(join.pubKeyHash, join.username, routedBy, false, join.displayJoin)) {
+			Participant newParticipant = participants.get(join.pubKeyHash);
+			Logger.minor(this, "Received join for "+newParticipant.name+" from "+routedBy.getName()+" in room '"+roomName+"' ("+globalIdentifier+") displayJoin="+join.displayJoin);
 			for (ByteArray pubKeyHash : participants.keySet()) {
 				//Route this join to all directly connected participants,
 				if (participants.get(pubKeyHash).directlyConnected && !pubKeyHash.equals(new ByteArray(routedBy.getPubKeyHash()))) {
@@ -220,9 +219,10 @@ public class ChatRoom {
 		return true;
 	}
 
+	//TODO: break connection problem into private method
 	/**
 	 * Removes a participant from the chat room.
-	 * @param removePubKeyHash Public key hash of the participant to remove.
+	 * @param leave Message of leave recieved.
 	 * @param senderPubKeyHash Public key hash of the participant that sent the removal request. In order for the
 	 * removal to be valid, this must either be the participant authorized to route this person's messages or the
 	 * participant themselves.
@@ -232,13 +232,13 @@ public class ChatRoom {
 	 * the log.
 	 */
 	//TODO: Should this return a more descriptive state? Will other things care whether the removal was successful?
-	public boolean removeParticipant(ByteArray removePubKeyHash, ByteArray senderPubKeyHash, boolean connectionProblem) {
-		String error = checkPresenceAndAuthorization("remove.", removePubKeyHash, senderPubKeyHash);
+	public boolean removeParticipant(Leave leave, ByteArray senderPubKeyHash, boolean connectionProblem) {
+		String error = checkPresenceAndAuthorization("remove.", leave.pubKeyHash, senderPubKeyHash);
 		if (error != null) {
 			Logger.warning(this, l10n("removeReceived",
 				new String[]{"removeName", "removeHash", "fromName", "fromHash"},
-				new String[]{findName(removePubKeyHash, removePubKeyHash),
-				        Base64.encode(removePubKeyHash.getBytes()),
+				new String[]{findName(leave.pubKeyHash, leave.pubKeyHash),
+				        Base64.encode(leave.pubKeyHash.getBytes()),
 				        peerNodes.get(senderPubKeyHash).getName(),
 				        Base64.encode(senderPubKeyHash.getBytes())})
 				+ ' ' + error + ' ' + l10n("roomInfo",
@@ -252,19 +252,19 @@ public class ChatRoom {
 
 		//The identity to remove and the sender of the request are in the chat room, and the sender of the
 		//request is authorized to remove the identity.
-		Participant removedParticipant = participants.get(removePubKeyHash);
+		Participant removedParticipant = participants.get(leave.pubKeyHash);
 		if (connectionProblem) {
 			addLine(removedParticipant, now, null, " "+l10n("lostConnection"));
 		} else {
 			addLine(removedParticipant, now, null, " "+l10n("left"));
 		}
 		Logger.minor(this, "Received leave for "+removedParticipant.name+" from "+participants.get(senderPubKeyHash).name+" in room '"+roomName+"' ("+globalIdentifier+"). ConnectionProblem="+connectionProblem);
-		participants.remove(removePubKeyHash);
+		participants.remove(leave.pubKeyHash);
 
 		Collection<Participant> participantCollection = participants.values();
 		for (Participant participant : participantCollection) {
 			//Remove from the room any other participants the leaving node routed for.
-			if (removePubKeyHash.equals(new ByteArray(participant.peerNode.getPubKeyHash()))) {
+			if (leave.pubKeyHash.equals(new ByteArray(participant.peerNode.getPubKeyHash()))) {
 				addLine(participant, now, null, " "+l10n("lostConnection"));
 				participantCollection.remove(participant);
 				Logger.minor(this, participant.name+" lost connection because they were connected through "+removedParticipant.name);
@@ -272,7 +272,7 @@ public class ChatRoom {
 			//pubKeyHash will be equal to the peerNode.getPubKeyHash() because it's locally invited
 			//and thus directly connected.
 			} else if (participant.directlyConnected && !senderPubKeyHash.equals(participant.pubKeyHash)) {
-				sendLeave(participant.peerNode, removePubKeyHash);
+				sendLeave(participant.peerNode, leave.pubKeyHash);
 			}
 		}
 		updateParticipantListing();
@@ -402,21 +402,19 @@ public class ChatRoom {
 
 	/**
 	 * Attempts to add a message to the chat room log.
-	 * @param composedBy The public key hash of the composer of the message.
-	 * @param timeComposed The time at which the message was composed.
 	 * @param deliveredBy The public key hash of the darknet peer node that delivered the message.
-	 * @param message The message to add.
+	 * @param message The message recieved.
 	 * @return True if the message was added; false if the message's composer is not in this chat room or the
 	 * sender is not in this chat room.
 	 */
-	public boolean receiveMessage(ByteArray composedBy, Date timeComposed, ByteArray deliveredBy, String message) {
-		String error = checkPresenceAndAuthorization("message.", composedBy, deliveredBy);
+	public boolean receiveMessage(Message message, ByteArray deliveredBy) {
+		String error = checkPresenceAndAuthorization("message.", message.pubKeyHash, deliveredBy);
 		if (error != null) {
-			assert(composedBy != null && deliveredBy != null);
+			assert(message.pubKeyHash != null && deliveredBy != null);
 			Logger.warning(this, l10n("messageReceived",
 				new String[]{"composerName", "composerHash", "fromName", "fromHash"},
-				new String[]{findName(composedBy, deliveredBy),
-				        Base64.encode(composedBy.getBytes()),
+				new String[]{findName(message.pubKeyHash, deliveredBy),
+				        Base64.encode(message.pubKeyHash.getBytes()),
 				        peerNodes.get(deliveredBy).getName(),
 				        Base64.encode(deliveredBy.getBytes())})
 				+ ' ' + error + ' ' + l10n("roomInfo",
@@ -430,23 +428,24 @@ public class ChatRoom {
 			return false;
 		}
 
-		Participant composer = participants.get(composedBy);
+		Participant composer = participants.get(message.pubKeyHash);
 		Participant sender = participants.get(deliveredBy);
 
 		Logger.minor(this, "Received chat message composed by "+composer.name+" delivered by "+sender.name+" in room '"+roomName+"' ("+globalIdentifier+")");
 
 		Calendar now = Calendar.getInstance();
 		now.setTime(new Date());
-		String tooltip=l10n("composed", "time", N2NChatPlugin.composedFormat.format(timeComposed.getTime()));
+		String tooltip=l10n("composed", "time", N2NChatPlugin.composedFormat.format(message.timeComposed.getTime()));
 		addLine(composer, now, tooltip, ": "+message);
 
 		//TODO: How to avoid duplicate sending? Currently more than one node can't be directly connected
 		//TODO: to any one participant, so for now it should be okay. When there's more interconnected routing,
 		//TODO: should there be some kind of message/join/leave identifier so that duplicates can be dropped?
 		//TODO: TCP sequence identifiers might be good to look into.
+		SimpleFieldSet fs = message.getFieldSet();
 		for (Participant participant : participants.values()) {
 			if (participant.directlyConnected && participant != sender) {
-				sendMessage(participant.peerNode, timeComposed, message, composedBy);
+				send(participant.peerNode, fs);
 			}
 		}
 
@@ -500,16 +499,17 @@ public class ChatRoom {
 		participantsUpdated = true;
 	}
 
-	public void sendOwnMessage(String message) {
+	public void sendOwnMessage(String messageText) {
 		Calendar now = Calendar.getInstance();
 		now.setTime(new Date());
 
-		addLine(username, now, null, ": " + message);
+		addLine(username, now, null, ": " + messageText);
 
+		SimpleFieldSet fs = new Message(globalIdentifier, null, new Date(), messageText).getFieldSet();
 		//Send this message to others.
 		for (Participant participant : participants.values()) {
 			if (participant.directlyConnected) {
-				sendMessage(participant.peerNode, now.getTime(), message, null);
+				send(participant.peerNode, fs);
 			}
 		}
 	}
@@ -555,46 +555,15 @@ public class ChatRoom {
 
 	//TODO: is it reasonable to queue chat messages? Desired? Wouldn't they leave the chat room if not connected though?
 	//TODO: Remove peers from chat when they disconnect.
+
 	/**
-	 * Basic sending message to darknet peer. Adds globalIdentifier and type to anything else in the SimpleFieldSet.
-	 * Does not queue.
-	 * @param darkPeer The DarknetPeerNode the message will be sent to.
-	 * @param fs The SimpleFieldSet thus far. Can be null.
-	 * @param type The type of the message. (Ex: N2NChatPlugin.MESSAGE)
+	 * Sends a message to the specified darknet peer.
+	 * @param darkPeer The darknet peer to send the message to.
+	 * @param fs Message to send on.
 	 */
-	private void sendBase(DarknetPeerNode darkPeer, SimpleFieldSet fs, int type) {
-		if (fs == null) {
-			fs = new SimpleFieldSet(true);
-		}
-		fs.put("globalIdentifier", globalIdentifier);
-		fs.put("type", type);
+	private void send(DarknetPeerNode darkPeer, SimpleFieldSet fs) {
 		darkPeer.sendNodeToNodeMessage(fs, N2NChatPlugin.N2N_MESSAGE_TYPE_CHAT, true,
 		        System.currentTimeMillis(), false);
-	}
-
-	/**
-	 * Sends a chat message to the specified darknet peer.
-	 * @param darkPeer The darknet peer to send the message to.
-	 * @param timeComposed The time the message was composed.
-	 * @param message The text of the message to send.
-	 * @param composedBy The public key hash of the participant that composed this message. Can be null, in which
-	 * case receiving nodes are to assume the sender of the message is the composer.
-	 */
-	private void sendMessage(DarknetPeerNode darkPeer, Date timeComposed, String message, ByteArray composedBy) {
-		SimpleFieldSet fs = new SimpleFieldSet(true);
-		fs.put("timeComposed", timeComposed.getTime());
-
-		//TODO: Why doesn't SFS allow byte arrays?
-		try {
-			fs.putSingle("text", Base64.encode(message.getBytes("UTF-8")));
-		} catch (UnsupportedEncodingException e) {
-			throw new Error("This JVM does not support UTF-8! Cannot encode message.");
-		}
-
-		formatPubKeyHash(composedBy, fs);
-		Logger.minor(this, "Sent message composed " + (composedBy == null ? "locally" : "by " +
-			participants.get(composedBy).name) + " in room '" + roomName + "' (" + globalIdentifier + ") to " + darkPeer.getName());
-		sendBase(darkPeer, fs, N2NChatPlugin.MESSAGE);
 	}
 
 	/**
@@ -606,15 +575,8 @@ public class ChatRoom {
 	 * @param displayJoin Whether the join should generate a message.
 	 */
 	private void sendJoin(DarknetPeerNode sendTo, Participant newParticipant, boolean displayJoin) {
-		SimpleFieldSet fs = formatPubKeyHash(newParticipant.pubKeyHash);
-		try {
-			fs.putSingle("username", Base64.encode(newParticipant.name.getBytes("UTF-8")));
-			fs.put("displayJoin", displayJoin);
-		} catch (UnsupportedEncodingException e) {
-			throw new Error("This JVM does not support UTF-8! Cannot encode join.");
-		}
 		Logger.minor(this, "Sent join of " + newParticipant.name + " in room '"+roomName+"' (" + globalIdentifier + ") to " + sendTo.getName());
-		sendBase(sendTo, fs, N2NChatPlugin.JOIN);
+		send(sendTo, new Join(globalIdentifier, newParticipant.pubKeyHash, newParticipant.name, displayJoin).getFieldSet());
 	}
 
 	/**
@@ -626,7 +588,7 @@ public class ChatRoom {
 	 */
 	private void sendLeave(DarknetPeerNode darkPeer, ByteArray pubKeyHash) {
 		Logger.minor(this, "Sent leave in room "+globalIdentifier+" to "+darkPeer.getName());
-		sendBase(darkPeer, formatPubKeyHash(pubKeyHash), N2NChatPlugin.LEAVE);
+		send(darkPeer, new Leave(globalIdentifier, pubKeyHash).getFieldSet());
 	}
 
 	/**
@@ -644,15 +606,9 @@ public class ChatRoom {
 			return false;
 		}
 
-		SimpleFieldSet fs = new SimpleFieldSet(true);
-		try {
-			fs.putSingle("username", Base64.encode(username.getBytes("UTF-8")));
-			fs.putSingle("roomName", Base64.encode(roomName.getBytes("UTF-8")));
-		} catch (UnsupportedEncodingException e) {
-			throw new Error("JVM does not support UTF-8! Cannot encode username string!");
-		}
+		SimpleFieldSet fs = new OfferInvite(globalIdentifier, username, roomName).getFieldSet();
 		Logger.minor(this, "Sent invite offer for room " + globalIdentifier + " to " + darkPeer.getName());
-		sendBase(darkPeer, fs, N2NChatPlugin.OFFER_INVITE);
+		send(darkPeer, fs);
 		sentInvites.put(pubKeyHash, new NameEntry(username, pubKeyHash));
 		updateParticipantListing();
 		return true;
@@ -661,7 +617,7 @@ public class ChatRoom {
 	public boolean sendInviteRetract(DarknetPeerNode darkPeer) {
 		if (sentInvites.containsKey(new ByteArray(darkPeer.getPubKeyHash()))) {
 			Logger.minor(this, "Retracted "+darkPeer.getName()+"'s invite to room "+globalIdentifier);
-			sendBase(darkPeer, null, N2NChatPlugin.RETRACT_INVITE);
+			send(darkPeer, new RetractInvite(globalIdentifier).getFieldSet());
 			sentInvites.remove(new ByteArray(darkPeer.getPubKeyHash()));
 			updateParticipantListing();
 			return true;
@@ -699,26 +655,6 @@ public class ChatRoom {
 	public boolean receiveInviteReject(DarknetPeerNode darkPeer) {
 		Logger.minor(this, darkPeer.getName()+" rejected an invite to room '"+roomName+"' ("+globalIdentifier+")");
 		return receiveInvite(darkPeer, false);
-	}
-
-	/**
-	 * Returns a SimpleFieldSet with the applicable pubKeyHash field.
-	 * @param pubKeyHash The key hash to add. Can be null, in which case the field will not be added.
-	 * @param fs To add fields to. Can be null, in which case a new one will be created.
-	 * @return Empty or unmodified SimpleFieldSet if pubKeyHash is null.
-	 */
-	private SimpleFieldSet formatPubKeyHash(ByteArray pubKeyHash, SimpleFieldSet fs) {
-		if (fs == null) {
-			fs = new SimpleFieldSet(true);
-		}
-		if (pubKeyHash != null) {
-			fs.putSingle("pubKeyHash", Base64.encode(pubKeyHash.getBytes()));
-		}
-		return fs;
-	}
-
-	private SimpleFieldSet formatPubKeyHash(ByteArray pubKeyHash) {
-		return formatPubKeyHash(pubKeyHash, null);
 	}
 
 	private String l10n(String key) {
