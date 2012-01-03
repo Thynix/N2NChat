@@ -1,4 +1,4 @@
-package plugins.N2NChat.webui;
+package plugins.N2NChat.ui.web;
 
 import freenet.clients.http.*;
 import freenet.l10n.NodeL10n;

@@ -28,9 +28,9 @@ import freenet.support.Logger;
 import freenet.support.SimpleFieldSet;
 
 import plugins.N2NChat.core.message.*;
-import plugins.N2NChat.webui.DisplayChatToadlet;
-import plugins.N2NChat.webui.MainPageToadlet;
-import plugins.N2NChat.webui.StaticResourceToadlet;
+import plugins.N2NChat.ui.web.DisplayChatToadlet;
+import plugins.N2NChat.ui.web.MainPageToadlet;
+import plugins.N2NChat.ui.web.StaticResourceToadlet;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;

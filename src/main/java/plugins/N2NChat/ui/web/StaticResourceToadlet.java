@@ -1,4 +1,4 @@
-package plugins.N2NChat.webui;
+package plugins.N2NChat.ui.web;
 
 import freenet.client.filter.ContentFilter;
 import freenet.client.DefaultMIMETypes;
