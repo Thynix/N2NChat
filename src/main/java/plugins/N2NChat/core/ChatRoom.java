@@ -90,7 +90,7 @@ public class ChatRoom {
 	public ChatRoom(String roomName, long globalIdentifier, String username, DarknetPeerNode[] peerNodes,
 	        PluginL10n l10n, DarknetPeerNode invitedBy) {
 		this(roomName, globalIdentifier, username, peerNodes, l10n);
-		ByteArray pubKeyHash = new ByteArray(invitedBy.getPubKeyHash());
+		ByteArray pubKeyHash = new ByteArray(invitedBy.peerECDSAPubKeyHash);
 		participants.put(pubKeyHash, new Participant(invitedBy.getName(), pubKeyHash, invitedBy, true, false));
 		updateParticipantListing();
 	}
@@ -105,7 +105,7 @@ public class ChatRoom {
 	public ArrayList<DarknetPeerNode> invitablePeers(DarknetPeerNode[] nodes, boolean onlyIfChanged) {
 		ArrayList<DarknetPeerNode> list = new ArrayList<DarknetPeerNode>();
 		for (DarknetPeerNode peerNode : nodes) {
-			if (!containsParticipant(new ByteArray(peerNode.getPubKeyHash()))) {
+			if (!containsParticipant(new ByteArray(peerNode.peerECDSAPubKeyHash))) {
 				list.add(peerNode);
 			}
 		}
@@ -122,7 +122,7 @@ public class ChatRoom {
 	public void updatePeerNodes(DarknetPeerNode[] updatedPeerNodes) {
 		this.peerNodes = new HashMap<ByteArray, DarknetPeerNode>();
 		for (DarknetPeerNode node : updatedPeerNodes) {
-			peerNodes.put(new ByteArray(node.getPubKeyHash()), node);
+			peerNodes.put(new ByteArray(node.peerECDSAPubKeyHash), node);
 		}
 		//TODO: Check new peers for direct connections to those currently routed and backup routes.
 	}
@@ -136,13 +136,13 @@ public class ChatRoom {
 	 */
 	public boolean inviteParticipant(DarknetPeerNode newParticipantPeer, String username) {
 		//Check if the participant is already participating.
-		if (addParticipant(new ByteArray(newParticipantPeer.getPubKeyHash()), newParticipantPeer.getName(),
+		if (addParticipant(new ByteArray(newParticipantPeer.peerECDSAPubKeyHash), newParticipantPeer.getName(),
 		        newParticipantPeer, true, true)) {
 			//They aren't; this is a fresh join.
-			Participant newParticipant = participants.get(new ByteArray(newParticipantPeer.getPubKeyHash()));
+			Participant newParticipant = participants.get(new ByteArray(newParticipantPeer.peerECDSAPubKeyHash));
 			for (ByteArray pubKeyHash : participants.keySet()) {
 				Participant existingParticipant = participants.get(pubKeyHash);
-				if (!pubKeyHash.equals(new ByteArray(newParticipantPeer.getPubKeyHash()))) {
+				if (!pubKeyHash.equals(new ByteArray(newParticipantPeer.peerECDSAPubKeyHash))) {
 					//Send the new participant silent joins for all other participants.
 					sendJoin(newParticipantPeer, existingParticipant, false);
 					if (existingParticipant.directlyConnected) {
@@ -174,7 +174,7 @@ public class ChatRoom {
 			Logger.minor(this, "Received join for "+newParticipant.name+" from "+routedBy.getName()+" in room '"+roomName+"' ("+globalIdentifier+") displayJoin="+displayJoin);
 			for (ByteArray pubKeyHash : participants.keySet()) {
 				//Route this join to all directly connected participants,
-				if (participants.get(pubKeyHash).directlyConnected && !pubKeyHash.equals(new ByteArray(routedBy.getPubKeyHash()))) {
+				if (participants.get(pubKeyHash).directlyConnected && !pubKeyHash.equals(new ByteArray(routedBy.peerECDSAPubKeyHash))) {
 					sendJoin(participants.get(pubKeyHash).peerNode, newParticipant, true);
 				}
 			}
@@ -200,7 +200,7 @@ public class ChatRoom {
 		if (participants.containsKey(publicKeyHash)) {
 			return false;
 		}
-		boolean directlyConnected = publicKeyHash.equals(new ByteArray(peerNode.getPubKeyHash()));
+		boolean directlyConnected = publicKeyHash.equals(new ByteArray(peerNode.peerECDSAPubKeyHash));
 		//TODO: If this participant was invited by someone else but is directly connected, connect to them directly.
 		//TODO: If they're directly connected, any messages would be echoed to them, which would cause
 		//TODO: duplicates on their end as whoever invited them would also route those messages.
@@ -264,12 +264,12 @@ public class ChatRoom {
 		Collection<Participant> participantCollection = participants.values();
 		for (Participant participant : participantCollection) {
 			//Remove from the room any other participants the leaving node routed for.
-			if (removePubKeyHash.equals(new ByteArray(participant.peerNode.getPubKeyHash()))) {
+			if (removePubKeyHash.equals(new ByteArray(participant.peerNode.peerECDSAPubKeyHash))) {
 				addLine(participant, now, null, " "+l10n("lostConnection"));
 				participantCollection.remove(participant);
 				Logger.minor(this, participant.name+" lost connection because they were connected through "+removedParticipant.name);
 			//Send this disconnect to all participants this node is connected to, provided it didn't deliver this.
-			//pubKeyHash will be equal to the peerNode.getPubKeyHash() because it's locally invited
+			//pubKeyHash will be equal to the peerNode.peerECDSAPubKeyHash because it's locally invited
 			//and thus directly connected.
 			} else if (participant.directlyConnected && !senderPubKeyHash.equals(participant.pubKeyHash)) {
 				sendLeave(participant.peerNode, removePubKeyHash);
@@ -343,7 +343,7 @@ public class ChatRoom {
 		//The sender of the request and target are in the chat room, but the sender of the request
 		//is not authorized to route for the target. This may occur in legitimate circumstances if this node has
 		//a direct connection to a peer that the sender of the request invited.
-		if (!senderPubKeyHash.equals(new ByteArray(participants.get(targetPubKeyHash).peerNode.getPubKeyHash()))) {
+		if (!senderPubKeyHash.equals(new ByteArray(participants.get(targetPubKeyHash).peerNode.peerECDSAPubKeyHash))) {
 			return l10n(prefix+"senderUnauthorized");
 		}
 
@@ -476,16 +476,16 @@ public class ChatRoom {
 			if (entry instanceof Participant) {
 				//It's a participant, list connection information on tooltip.
 				Participant participant = (Participant)entry;
-				if (participant.pubKeyHash.equals(new ByteArray(participant.peerNode.getPubKeyHash()))) {
+				if (participant.pubKeyHash.equals(new ByteArray(participant.peerNode.peerECDSAPubKeyHash))) {
 					routing = l10n("connectedDirectly",
 					        new String[] { "nodeName", "nodeID" },
 					        new String[] { participant.peerNode.getName(),
-					                Base64.encode(participant.peerNode.getPubKeyHash()) });
+					                Base64.encode(participant.peerNode.peerECDSAPubKeyHash) });
 				} else {
 					routing = l10n("connectedThrough",
 					        new String[] { "nodeName", "nodeID", "pubKeyHash" },
 					        new String[] { participant.peerNode.getName(),
-					                Base64.encode(participant.peerNode.getPubKeyHash()),
+					                Base64.encode(participant.peerNode.peerECDSAPubKeyHash),
 					                Base64.encode(participant.pubKeyHash.getBytes()) });
 				}
 			} else if (entry.equals(username)) {
@@ -644,7 +644,7 @@ public class ChatRoom {
 	}
 
 	public boolean sendInviteOffer(DarknetPeerNode darkPeer, String username) {
-		ByteArray pubKeyHash = new ByteArray(darkPeer.getPubKeyHash());
+		ByteArray pubKeyHash = new ByteArray(darkPeer.peerECDSAPubKeyHash);
 		if (sentInvites.containsKey(pubKeyHash)) {
 			return false;
 		}
@@ -664,10 +664,10 @@ public class ChatRoom {
 	}
 
 	public boolean sendInviteRetract(DarknetPeerNode darkPeer) {
-		if (sentInvites.containsKey(new ByteArray(darkPeer.getPubKeyHash()))) {
+		if (sentInvites.containsKey(new ByteArray(darkPeer.peerECDSAPubKeyHash))) {
 			Logger.minor(this, "Retracted "+darkPeer.getName()+"'s invite to room "+globalIdentifier);
 			sendBase(darkPeer, null, N2NChatPlugin.RETRACT_INVITE);
-			sentInvites.remove(new ByteArray(darkPeer.getPubKeyHash()));
+			sentInvites.remove(new ByteArray(darkPeer.peerECDSAPubKeyHash));
 			updateParticipantListing();
 			return true;
 		} else {
@@ -683,7 +683,7 @@ public class ChatRoom {
 	 * @return True if the invite was removed, false if the invite does not exist.
 	 */
 	private boolean receiveInvite(DarknetPeerNode darkPeer, boolean accepted) {
-		ByteArray darkPeerHash = new ByteArray(darkPeer.getPubKeyHash());
+		ByteArray darkPeerHash = new ByteArray(darkPeer.peerECDSAPubKeyHash);
 		if (!sentInvites.containsKey(darkPeerHash)) {
 			Logger.warning(this, "Received message from "+darkPeer.getName()+" about nonexistent invite to room "+globalIdentifier);
 			return false;
