@@ -13,7 +13,7 @@
 		<dependency>
 			<groupId>org.freenetproject</groupId>
 			<artifactId>fred</artifactId>
-			<version>0.7.5.1387</version>
+			<version>0.7.5.1491</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>

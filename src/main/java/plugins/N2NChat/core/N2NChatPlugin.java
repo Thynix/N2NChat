@@ -335,7 +335,7 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 			freenet.support.Logger.normal(this, "Received N2N chat from " +darkSource.getName()+" (" + darkSource.getPeer() + ")");
 			SimpleFieldSet fs = null;
 			try {
-				fs = new SimpleFieldSet(new String(data, "UTF-8"), false, true);
+				fs = new SimpleFieldSet(new String(data, "UTF-8"), false, true, false);
 			} catch (UnsupportedEncodingException e) {
 				throw new Error("Impossible: JVM doesn't support UTF-8: " + e, e);
 			} catch (IOException e) {
@@ -421,7 +421,7 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 			} catch (FSParseException e) {
 				//pubKeyHash was not included. This means it pertains to the sender.
 				Logger.minor(this, "Public key hash was not included; assuming sender.");
-				pubKeyHash = new ByteArray(darkSource.getPubKeyHash());
+				pubKeyHash = new ByteArray(darkSource.peerECDSAPubKeyHash);
 			} catch (IllegalBase64Exception e) {
 				//Could not parse identity hash. Dropping.
 				//TODO: Add localized, logged error message.
@@ -435,7 +435,7 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 					chatRooms.get(globalIdentifier).receiveMessage(
 					        pubKeyHash,
 					        new Date(fs.getLong("timeComposed")),
-					        new ByteArray(darkSource.getPubKeyHash()),
+					        new ByteArray(darkSource.peerECDSAPubKeyHash),
 					        new String(Base64.decode(fs.get("text"))));
 				} catch (FSParseException e) {
 					//TODO: Add localized, logged error message.
@@ -462,7 +462,7 @@ public class N2NChatPlugin implements FredPlugin, FredPluginL10n, FredPluginBase
 			//Someone left a chat room.
 			} else if (type == LEAVE) {
 				chatRooms.get(globalIdentifier).removeParticipant(pubKeyHash,
-				        new ByteArray(darkSource.getPubKeyHash()), false);
+				        new ByteArray(darkSource.peerECDSAPubKeyHash), false);
 				return;
 			}
 			Logger.warning(this, "Received chat message of unknown type "+type+" from "+darkSource.getName());
