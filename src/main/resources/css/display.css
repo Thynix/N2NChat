@@ -22,6 +22,7 @@ body {
     padding: 0;
     margin: 0;
     overflow: scroll;
+    min-height: 300px;
     background-color:white;
 }
 
