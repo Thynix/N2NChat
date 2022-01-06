@@ -23,7 +23,7 @@ body {
     margin: 0;
     overflow: scroll;
     min-height: 300px;
-    max-height: 80%;
+    max-height: 70vh; /* smaller than actual screen (viewport ) */
     background-color:white;
 }
 
