@@ -10,6 +10,10 @@ body {
     height: 100%;
 }
 
+#page {
+  height: 100%;
+}
+
 /*List used in message log and participant listing*/
 .list-pane {
 	list-style-type:none;
