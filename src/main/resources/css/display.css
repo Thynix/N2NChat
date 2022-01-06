@@ -23,6 +23,7 @@ body {
     margin: 0;
     overflow: scroll;
     min-height: 300px;
+    max-height: 80%;
     background-color:white;
 }
 
