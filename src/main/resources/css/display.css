@@ -10,10 +10,6 @@ body {
     height: 100%;
 }
 
-#page {
-  height: 100%;
-}
-
 /*List used in message log and participant listing*/
 .list-pane {
 	list-style-type:none;
@@ -25,11 +21,6 @@ body {
 #messages-pane {
     padding: 0;
     margin: 0;
-    position: absolute;
-    top: 100px;
-    left: 20px;
-    right: 290px;
-    bottom: 100px;
     overflow: scroll;
     background-color:white;
 }
