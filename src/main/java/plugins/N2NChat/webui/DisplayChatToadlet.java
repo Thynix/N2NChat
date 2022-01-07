@@ -77,7 +77,7 @@ public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 				byte[] pubKeyHash = Base64.decode(request.getPartAsStringFailsafe("invite", 4096));
 				DarknetPeerNode peerNode = null;
 				for (DarknetPeerNode node : this.node.getDarknetConnections()) {
-					if (Arrays.equals(node.getPubKeyHash(), pubKeyHash)) {
+					if (Arrays.equals(node.peerECDSAPubKeyHash, pubKeyHash)) {
 						peerNode = node;
 						break;
 					}
@@ -193,7 +193,7 @@ public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 	private String generateInviteOptions(ToadletContext ctx, ArrayList<DarknetPeerNode> invitablePeers) {
 		StringBuilder options = new StringBuilder();
 		for (DarknetPeerNode peerNode : invitablePeers) {
-			options.append("<option value=\"").append(Base64.encode(peerNode.getPubKeyHash())).
+			options.append("<option value=\"").append(Base64.encode(peerNode.peerECDSAPubKeyHash)).
 			        append("\">").append(peerNode.getName()).append("</option>");
 		}
 		return options.toString();
@@ -216,7 +216,7 @@ public class DisplayChatToadlet extends Toadlet implements LinkEnabledCallback {
 		HTMLNode dropDown = inviteForm.addChild("select", "name", "invite");
 
 		for (DarknetPeerNode peerNode : invitablePeers) {
-			dropDown.addChild("option", "value", Base64.encode(peerNode.getPubKeyHash()), peerNode.getName());
+			dropDown.addChild("option", "value", Base64.encode(peerNode.peerECDSAPubKeyHash), peerNode.getName());
 		}
 
 		inviteForm.addChild("input",
